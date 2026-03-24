@@ -10,6 +10,7 @@ on:
 env:
   DOTNET_VERSION: '11.0.x'
   CONFIGURATION: 'Release'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   build:
@@ -84,37 +85,98 @@ jobs:
       run: |
         $archiveName = "InrideFair_v${{ steps.get_version.outputs.VERSION }}_Windows.zip"
         Compress-Archive -Path "./publish/*" -DestinationPath "$archiveName" -Force
+        "archive_path=$((Resolve-Path $archiveName).Path)" >> $env:GITHUB_OUTPUT
         "archive_name=$archiveName" >> $env:GITHUB_OUTPUT
         
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        name: Inride Fair v${{ steps.get_version.outputs.VERSION }}
-        body: |
-          ## Release Notes
-
-          Version: v${{ steps.get_version.outputs.VERSION }}
-
-          Key updates in 1.1.0:
-          - refreshed WPF interface and branding
-          - typed threat pipeline and cleaner scanner internals
-          - automated tests in CI
-          - updated packaging for Release and portable Distribution builds
-
-          ## Requirements
-
-          - Windows 10/11 x64
-          - .NET runtime is not required for packaged releases
-          - Administrator rights are recommended for full scan coverage
-
-          ## Installation
-
-          1. Download the ZIP artifact
-          2. Extract it to any folder
-          3. Run InrideFair.exe
-          4. Keep config.json next to the executable
-        draft: false
-        prerelease: false
-        files: ${{ steps.create_zip.outputs.archive_name }}
+      shell: pwsh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.get_version.outputs.VERSION }}
+        ARCHIVE_NAME: ${{ steps.create_zip.outputs.archive_name }}
+        ARCHIVE_PATH: ${{ steps.create_zip.outputs.archive_path }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+
+        $headers = @{
+          Authorization = "Bearer $env:GITHUB_TOKEN"
+          Accept = 'application/vnd.github+json'
+          'X-GitHub-Api-Version' = '2022-11-28'
+        }
+
+        $tag = "v$env:VERSION"
+        $repo = $env:GITHUB_REPOSITORY
+        $releaseName = "Inride Fair $tag"
+        $releaseBody = @"
+        ## Release Notes
+
+        Version: $tag
+
+        Key updates in 1.1.0:
+        - refreshed WPF interface and branding
+        - typed threat pipeline and cleaner scanner internals
+        - automated tests in CI
+        - updated packaging for Release and portable Distribution builds
+
+        ## Requirements
+
+        - Windows 10/11 x64
+        - .NET runtime is not required for packaged releases
+        - Administrator rights are recommended for full scan coverage
+
+        ## Installation
+
+        1. Download the ZIP artifact
+        2. Extract it to any folder
+        3. Run InrideFair.exe
+        4. Keep config.json next to the executable
+        "@
+
+        $release = $null
+        $releaseApi = "https://api.github.com/repos/$repo/releases/tags/$tag"
+
+        try {
+          $release = Invoke-RestMethod -Method Get -Headers $headers -Uri $releaseApi
+        }
+        catch {
+          if ($_.Exception.Response.StatusCode.value__ -ne 404) {
+            throw
+          }
+        }
+
+        if ($null -eq $release) {
+          $createBody = @{
+            tag_name = $tag
+            name = $releaseName
+            body = $releaseBody
+            draft = $false
+            prerelease = $false
+          } | ConvertTo-Json
+
+          $release = Invoke-RestMethod -Method Post -Headers $headers -Uri "https://api.github.com/repos/$repo/releases" -Body $createBody
+        }
+        else {
+          $updateBody = @{
+            name = $releaseName
+            body = $releaseBody
+            draft = $false
+            prerelease = $false
+          } | ConvertTo-Json
+
+          $release = Invoke-RestMethod -Method Patch -Headers $headers -Uri "https://api.github.com/repos/$repo/releases/$($release.id)" -Body $updateBody
+        }
+
+        $existingAsset = $release.assets | Where-Object { $_.name -eq $env:ARCHIVE_NAME } | Select-Object -First 1
+        if ($null -ne $existingAsset) {
+          Invoke-RestMethod -Method Delete -Headers $headers -Uri "https://api.github.com/repos/$repo/releases/assets/$($existingAsset.id)"
+        }
+
+        $uploadHeaders = @{
+          Authorization = "Bearer $env:GITHUB_TOKEN"
+          Accept = 'application/vnd.github+json'
+          'X-GitHub-Api-Version' = '2022-11-28'
+          'Content-Type' = 'application/zip'
+        }
+
+        $uploadUrl = "https://uploads.github.com/repos/$repo/releases/$($release.id)/assets?name=$([System.Uri]::EscapeDataString($env:ARCHIVE_NAME))"
+        Invoke-RestMethod -Method Post -Headers $uploadHeaders -Uri $uploadUrl -InFile $env:ARCHIVE_PATH
