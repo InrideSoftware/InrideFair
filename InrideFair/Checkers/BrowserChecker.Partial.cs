@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using InrideFair.Config;
 using InrideFair.Database;
+using InrideFair.Models;
 using InrideFair.Services;
 
 namespace InrideFair.Checkers;
@@ -27,16 +28,14 @@ public partial class BrowserChecker
             
             if (match != null)
             {
-                FoundCheats.Add(new Dictionary<string, object?>
+                FoundCheats.Add(new DetectedThreat
                 {
-                    ["type"] = "browser_search",
-                    ["browser"] = browserName,
-                    ["url"] = url,
-                    ["title"] = title,
-                    ["match"] = match,
-                    ["risk"] = "medium",
-                    ["visit_date"] = visitDate,
-                    ["timestamp"] = timestamp
+                    Type = "browser_search",
+                    Browser = browserName,
+                    Url = url,
+                    Title = title,
+                    Match = match,
+                    Risk = "medium"
                 });
                 foundQueries++;
             }
@@ -49,15 +48,14 @@ public partial class BrowserChecker
             
             if (match != null)
             {
-                FoundCheats.Add(new Dictionary<string, object?>
+                FoundCheats.Add(new DetectedThreat
                 {
-                    ["type"] = "browser_download",
-                    ["browser"] = browserName,
-                    ["filepath"] = filepath,
-                    ["match"] = match,
-                    ["risk"] = "high",
-                    ["download_date"] = downloadDate,
-                    ["timestamp"] = timestamp
+                    Type = "browser_download",
+                    Browser = browserName,
+                    FilePath = filepath,
+                    Path = filepath,
+                    Match = match,
+                    Risk = "high"
                 });
                 foundDownloads++;
             }
@@ -69,9 +67,9 @@ public partial class BrowserChecker
     /// <summary>
     /// Сканировать кэш браузера.
     /// </summary>
-    public List<Dictionary<string, object?>> ScanCacheDirectory(List<string> cachePaths, string browserName)
+    public List<DetectedThreat> ScanCacheDirectory(List<string> cachePaths, string browserName)
     {
-        var found = new List<Dictionary<string, object?>>();
+        var found = new List<DetectedThreat>();
 
         foreach (var cacheDir in cachePaths)
         {
@@ -100,15 +98,15 @@ public partial class BrowserChecker
                         var match = CheckUrl(url, snippet);
                         if (match != null)
                         {
-                            found.Add(new Dictionary<string, object?>
+                            found.Add(new DetectedThreat
                             {
-                                ["type"] = "browser_cache",
-                                ["browser"] = browserName,
-                                ["url"] = url,
-                                ["cache_file"] = cacheFile.FullName,
-                                ["match"] = match,
-                                ["risk"] = "medium",
-                                ["source"] = "cache"
+                                Type = "browser_cache",
+                                Browser = browserName,
+                                Url = url,
+                                FilePath = cacheFile.FullName,
+                                Path = cacheFile.FullName,
+                                Match = match,
+                                Risk = "medium"
                             });
                         }
                     }
@@ -168,9 +166,9 @@ public partial class BrowserChecker
     /// <summary>
     /// Сканировать лог файл браузера.
     /// </summary>
-    public List<Dictionary<string, object?>> ScanLogFile(string logPath, string browserName)
+    public List<DetectedThreat> ScanLogFile(string logPath, string browserName)
     {
-        var found = new List<Dictionary<string, object?>>();
+        var found = new List<DetectedThreat>();
 
         try
         {
@@ -201,16 +199,15 @@ public partial class BrowserChecker
                     var urlMatch = CheckUrl(url, line);
                     if (urlMatch != null)
                     {
-                        found.Add(new Dictionary<string, object?>
+                        found.Add(new DetectedThreat
                         {
-                            ["type"] = "browser_log",
-                            ["browser"] = browserName,
-                            ["url"] = url,
-                            ["log_file"] = logPath,
-                            ["line"] = lineNumber,
-                            ["match"] = urlMatch,
-                            ["risk"] = "medium",
-                            ["source"] = "log"
+                            Type = "browser_log",
+                            Browser = browserName,
+                            Url = url,
+                            FilePath = logPath,
+                            Path = logPath,
+                            Match = urlMatch,
+                            Risk = "medium"
                         });
                     }
                 }
@@ -228,9 +225,9 @@ public partial class BrowserChecker
     /// <summary>
     /// Сканировать файлы сессии браузера.
     /// </summary>
-    public List<Dictionary<string, object?>> ScanSessionFiles(string sessionDir)
+    public List<DetectedThreat> ScanSessionFiles(string sessionDir)
     {
-        var found = new List<Dictionary<string, object?>>();
+        var found = new List<DetectedThreat>();
 
         if (!Directory.Exists(sessionDir))
             return found;
@@ -263,15 +260,15 @@ public partial class BrowserChecker
                         {
                             if (url.ToLower().Contains(query.ToLower()))
                             {
-                                found.Add(new Dictionary<string, object?>
+                                found.Add(new DetectedThreat
                                 {
-                                    ["type"] = "browser_session",
-                                    ["browser"] = "Session Recovery",
-                                    ["url"] = url,
-                                    ["session_file"] = item.FullName,
-                                    ["match"] = query,
-                                    ["risk"] = "medium",
-                                    ["source"] = "session"
+                                    Type = "browser_session",
+                                    Browser = "Session Recovery",
+                                    Url = url,
+                                    FilePath = item.FullName,
+                                    Path = item.FullName,
+                                    Match = query,
+                                    Risk = "medium"
                                 });
                                 break;
                             }
@@ -297,9 +294,9 @@ public partial class BrowserChecker
     /// <summary>
     /// Сканировать DNS кэш.
     /// </summary>
-    public List<Dictionary<string, object?>> ScanDnsCache()
+    public List<DetectedThreat> ScanDnsCache()
     {
-        var found = new List<Dictionary<string, object?>>();
+        var found = new List<DetectedThreat>();
 
         if (_osName == "Windows")
         {
@@ -327,14 +324,13 @@ public partial class BrowserChecker
                     var urlMatch = CheckUrl(entry, "");
                     if (urlMatch != null)
                     {
-                        found.Add(new Dictionary<string, object?>
+                        found.Add(new DetectedThreat
                         {
-                            ["type"] = "dns_cache",
-                            ["browser"] = "System DNS",
-                            ["url"] = entry,
-                            ["match"] = urlMatch,
-                            ["risk"] = "low",
-                            ["source"] = "dns_cache"
+                            Type = "dns_cache",
+                            Browser = "System DNS",
+                            Url = entry,
+                            Match = urlMatch,
+                            Risk = "low"
                         });
                     }
                 }
@@ -357,14 +353,13 @@ public partial class BrowserChecker
                         var urlMatch = CheckUrl(line, "");
                         if (urlMatch != null)
                         {
-                            found.Add(new Dictionary<string, object?>
+                            found.Add(new DetectedThreat
                             {
-                                ["type"] = "hosts_file",
-                                ["browser"] = "System Hosts",
-                                ["url"] = line.Trim(),
-                                ["match"] = urlMatch,
-                                ["risk"] = "high",
-                                ["source"] = "hosts"
+                                Type = "hosts_file",
+                                Browser = "System Hosts",
+                                Url = line.Trim(),
+                                Match = urlMatch,
+                                Risk = "high"
                             });
                         }
                     }
@@ -383,9 +378,9 @@ public partial class BrowserChecker
     /// <summary>
     /// Сканировать Windows Prefetch.
     /// </summary>
-    public List<Dictionary<string, object?>> ScanPrefetch()
+    public List<DetectedThreat> ScanPrefetch()
     {
-        var found = new List<Dictionary<string, object?>>();
+        var found = new List<DetectedThreat>();
 
         if (_osName != "Windows")
             return found;
@@ -402,7 +397,7 @@ public partial class BrowserChecker
                 {
                     using var fs = File.OpenRead(prefetchFile.FullName);
                     var buffer = new byte[fs.Length];
-                    fs.Read(buffer, 0, buffer.Length);
+                    fs.ReadExactly(buffer, 0, buffer.Length);
 
                     var exePattern = @"[A-Za-z0-9_\-]+\.exe";
                     var matches = Regex.Matches(System.Text.Encoding.UTF8.GetString(buffer), exePattern);
@@ -414,15 +409,15 @@ public partial class BrowserChecker
                         {
                             if (exeName.Contains(cheatSig.ToLower()))
                             {
-                                found.Add(new Dictionary<string, object?>
+                                found.Add(new DetectedThreat
                                 {
-                                    ["type"] = "prefetch",
-                                    ["browser"] = "Windows Prefetch",
-                                    ["file"] = exeName,
-                                    ["prefetch_file"] = prefetchFile.FullName,
-                                    ["match"] = cheatSig,
-                                    ["risk"] = "high",
-                                    ["source"] = "prefetch"
+                                    Type = "prefetch",
+                                    Browser = "Windows Prefetch",
+                                    Name = exeName,
+                                    FilePath = prefetchFile.FullName,
+                                    Path = prefetchFile.FullName,
+                                    Match = cheatSig,
+                                    Risk = "high"
                                 });
                                 break;
                             }

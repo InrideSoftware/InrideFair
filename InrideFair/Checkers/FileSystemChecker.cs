@@ -1,5 +1,6 @@
 using System.IO;
 using InrideFair.Database;
+using InrideFair.Models;
 using InrideFair.Services;
 using InrideFair.Utils;
 
@@ -12,7 +13,7 @@ public class FileSystemChecker
 {
     private readonly CheatDatabase _cheatDb;
     private readonly ILoggingService _logger;
-    public List<Dictionary<string, object?>> FoundCheats { get; } = [];
+    public List<DetectedThreat> FoundCheats { get; } = [];
 
     public FileSystemChecker(CheatDatabase cheatDb, ILoggingService logger)
     {
@@ -144,9 +145,9 @@ public class FileSystemChecker
     /// <summary>
     /// Проверить директорию.
     /// </summary>
-    public List<Dictionary<string, object?>> CheckDirectory(string directory)
+    public List<DetectedThreat> CheckDirectory(string directory)
     {
-        var found = new List<Dictionary<string, object?>>();
+        var found = new List<DetectedThreat>();
 
         try
         {
@@ -209,12 +210,14 @@ public class FileSystemChecker
                     {
                         if (nameLower == cheatFile.ToLower())
                         {
-                            found.Add(new Dictionary<string, object?>
+                            found.Add(new DetectedThreat
                             {
-                                ["path"] = item.FullName,
-                                ["match"] = cheatFile,
-                                ["hash"] = FileAnalyzer.GetFileHash(item.FullName),
-                                ["exact_match"] = true
+                                Type = "file",
+                                Path = item.FullName,
+                                Match = cheatFile,
+                                Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "N/A",
+                                ExactMatch = true,
+                                Risk = "medium"
                             });
                             foundMatch = true;
                             break;
@@ -227,12 +230,14 @@ public class FileSystemChecker
                         {
                             if (nameLower.Contains(cheatSig.ToLower()))
                             {
-                                found.Add(new Dictionary<string, object?>
+                                found.Add(new DetectedThreat
                                 {
-                                    ["path"] = item.FullName,
-                                    ["match"] = cheatSig,
-                                    ["hash"] = FileAnalyzer.GetFileHash(item.FullName),
-                                    ["exact_match"] = false
+                                    Type = "file",
+                                    Path = item.FullName,
+                                    Match = cheatSig,
+                                    Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "N/A",
+                                    ExactMatch = false,
+                                    Risk = "medium"
                                 });
                                 break;
                             }
@@ -246,13 +251,15 @@ public class FileSystemChecker
                         var (score, indicators) = FileAnalyzer.AnalyzeDllFile(item.FullName);
                         if (score >= 5)
                         {
-                            found.Add(new Dictionary<string, object?>
+                            found.Add(new DetectedThreat
                             {
-                                ["path"] = item.FullName,
-                                ["match"] = $"Analysis: {score}/10",
-                                ["hash"] = FileAnalyzer.GetFileHash(item.FullName),
-                                ["analysis_score"] = score,
-                                ["indicators"] = indicators
+                                Type = "file",
+                                Path = item.FullName,
+                                Match = $"Analysis: {score}/10",
+                                Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "N/A",
+                                AnalysisScore = score,
+                                Indicators = indicators,
+                                Risk = score >= 8 ? "high" : "medium"
                             });
                         }
                     }
@@ -263,13 +270,15 @@ public class FileSystemChecker
                         var (score, indicators) = FileAnalyzer.AnalyzeConfigFile(item.FullName);
                         if (score >= 5)
                         {
-                            found.Add(new Dictionary<string, object?>
+                            found.Add(new DetectedThreat
                             {
-                                ["path"] = item.FullName,
-                                ["match"] = $"Config: {score}/10",
-                                ["hash"] = FileAnalyzer.GetFileHash(item.FullName),
-                                ["analysis_score"] = score,
-                                ["indicators"] = indicators
+                                Type = "file",
+                                Path = item.FullName,
+                                Match = $"Config: {score}/10",
+                                Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "N/A",
+                                AnalysisScore = score,
+                                Indicators = indicators,
+                                Risk = score >= 8 ? "high" : "medium"
                             });
                         }
                     }
@@ -300,22 +309,11 @@ public class FileSystemChecker
     /// </summary>
     public int CheckSystem()
     {
-        var allFound = new List<Dictionary<string, object?>>();
-        var analyzedDirs = new List<Dictionary<string, object?>>();
+        var allFound = new List<DetectedThreat>();
 
         foreach (var suspPath in _cheatDb.SuspiciousPaths)
         {
-            var (score, indicators) = AnalyzeDirectoryHeuristic(suspPath);
-            if (score > 0)
-            {
-                analyzedDirs.Add(new Dictionary<string, object?>
-                {
-                    ["path"] = suspPath,
-                    ["score"] = score,
-                    ["label"] = GetSuspicionLabel(score),
-                    ["indicators"] = indicators
-                });
-            }
+            _ = AnalyzeDirectoryHeuristic(suspPath);
             allFound.AddRange(CheckDirectory(suspPath));
         }
 
@@ -323,36 +321,11 @@ public class FileSystemChecker
         if (OperatingSystem.IsWindows())
         {
             var programData = Environment.GetEnvironmentVariable("PROGRAMDATA") ?? @"C:\ProgramData";
-            var (score, indicators) = AnalyzeDirectoryHeuristic(programData);
-            if (score > 0)
-            {
-                analyzedDirs.Add(new Dictionary<string, object?>
-                {
-                    ["path"] = programData,
-                    ["score"] = score,
-                    ["label"] = GetSuspicionLabel(score),
-                    ["indicators"] = indicators
-                });
-            }
+            _ = AnalyzeDirectoryHeuristic(programData);
             allFound.AddRange(CheckDirectory(programData));
         }
 
-        foreach (var item in allFound)
-        {
-            var analysisScore = item.TryGetValue("analysis_score", out var scoreObj) && scoreObj is int s ? s : 0;
-            var risk = analysisScore >= 8 ? "high" : analysisScore >= 5 ? "medium" : "medium";
-
-            FoundCheats.Add(new Dictionary<string, object?>
-            {
-                ["type"] = "file",
-                ["path"] = item["path"],
-                ["match"] = item["match"],
-                ["hash"] = item.GetValueOrDefault("hash", "N/A"),
-                ["risk"] = risk,
-                ["analysis_score"] = analysisScore > 0 ? analysisScore : null,
-                ["indicators"] = item.GetValueOrDefault("indicators", new List<string>())
-            });
-        }
+        FoundCheats.AddRange(allFound);
 
         return allFound.Count;
     }

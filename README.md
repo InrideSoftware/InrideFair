@@ -1,386 +1,113 @@
-<<<<<<< HEAD
-# InrideFair
-Cheat detection system for windows.
-=======
-# Inride Fair �️
+# Inride Fair
 
-**Система обнаружения читов и вредоносного ПО**
+Inride Fair is a Windows desktop utility for detecting suspicious files, processes, browser artifacts, registry traces, and other indicators commonly associated with cheats or unwanted software.
 
-Версия: 1.0.0 | 2026 | **Windows** | **C# .NET 11** | **WPF**
+Current release: **1.1.0**
 
----
+## Highlights in 1.1.0
 
-## 🚀 Быстрый старт
+- Typed threat model instead of loosely structured dictionaries
+- Cleaner dependency injection and scanner lifecycle
+- Updated premium WPF interface with branded icons
+- Sidebar progress tracking and smoother scrolling behavior
+- Test project with automated checks
+- Refreshed release and distribution scripts for GitHub publishing
 
-### Запуск программы
+## Core Features
 
-```
-1. Скачайте InrideFair_v1.0.0_*.zip
-2. Распакуйте в любую папку
-3. Запустите InrideFair.exe (двойной клик)
-4. Нажмите "🔍 НАЧАТЬ ПРОВЕРКУ"
-```
+- Process signature scanning
+- File system analysis with heuristic checks
+- Archive inspection
+- Browser artifact analysis
+- Registry and autorun checks
+- JSON and HTML report generation
+- WPF desktop UI for guided local scans
 
-**Готово!** ✅ Отчёт откроется автоматически после сканирования.
+## Requirements
 
----
+- Windows 10/11 x64
+- .NET 11 SDK for development
+- No runtime installation required for published release builds
 
-## 📥 Скачать
+## Repository Layout
 
-| Версия | Файл | Размер |
-|--------|------|--------|
-| **1.0.0** | `InrideFair_v1.0.0_*.zip` | ~63 MB |
-
-**Содержимое архива:**
-- `InrideFair.exe` — исполняемый файл
-- `config.json` — конфигурация
-- `LICENSE` — лицензия
-- `README.txt` — краткая инструкция
-
----
-
-## ⚙️ Системные требования
-
-| Компонент | Требование |
-|-----------|------------|
-| **ОС** | Windows 10/11 (64-bit) |
-| **Процессор** | 1.5 GHz или выше |
-| **Память** | 512 MB RAM |
-| **Место на диске** | 100 MB |
-| **Права** | Администратор (рекомендуется) |
-| **.NET** | ❌ Не требуется (встроен в EXE) |
-
----
-
-## 🖥️ Интерфейс
-
-### Главное окно
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│ 🛡️ Inride Fair v1.0.0                              ─ □ ✕     │ ← Тёмная шапка
-├────────┬─────────────────────────────────────────────────────┤
-│        │  Сканирование системы                               │
-│ 🏠     │  Проверка на наличие читов и вредоносного ПО        │
-│ Главная│  ┌─────────────────────────────────────┐           │
-│        │  │ ОС: Windows 10 | X64 | .NET 11.0    │           │
-│ ℹ️     │  └─────────────────────────────────────┘           │
-│ О прог │  ┌─────────────────────────────────────────────┐   │
-│        │  │ ● Готов к проверке                          │   │
-│ ❓     │  │ ████████████████░░░░░░░░░░ 60%              │   │
-│ FAQ    │  └─────────────────────────────────────────────┘   │
-│        │                                                     │
-│ 👨‍💻    │  ┌────────┬────────┬────────┬────────┐           │
-│ Разраб │  │ ВСЕГО  │ ВЫСОКИЙ│ СРЕДНИЙ│ НИЗКИЙ │           │
-│        │  │   0    │   0    │   0    │   0    │           │
-│ 🐦     │  └────────┴────────┴────────┴────────┘           │
-│ GitHub │                                                     │
-│        │  ┌─────────────────┬─────────────────┐           │
-│        │  │ � Детали       │ 📋 Журнал       │           │
-│        │  │ сканирования    │ событий         │           │
-│        │  │                 │                 │           │
-│        │  │  • Процессы: 0  │  Запуск...      │           │
-│        │  │  • Файлы: 0     │                 │           │
-│        │  └─────────────────┴─────────────────┘           │
-│        │                                                     │
-│        │      [  🔍 НАЧАТЬ ПРОВЕРКУ  ]                      │
-│        │   [📂 Открыть папки] [📄 Открыть отчёт]           │
-└────────┴─────────────────────────────────────────────────────┘
-   ↑
-Боковое меню (280px)
+```text
+InrideFair.sln
+InrideFair/
+  Checkers/      scan modules
+  Config/        app settings, signatures, version helpers
+  Database/      signature and indicator sources
+  Models/        typed report and threat models
+  Scanner/       orchestration layer
+  Services/      logging, reports, validation, DI
+  UI/            WPF window, styles, interaction logic
+InrideFair.Tests/
+Release/         generated full release artifacts
+Distribution/    generated portable user package
 ```
 
-### Боковое меню
+## Local Development
 
-| Кнопка | Описание |
-|--------|----------|
-| **🏠 Главная** | Основное окно сканирования |
-| **ℹ️ О программе** | Информация о возможностях и версии |
-| **❓ Вопросы и ответы** | Ответы на частые вопросы (FAQ) |
-| **👨‍💻 О разработчике** | Информация об Inride Software |
-| **🐦 GitHub** | Переход на страницу проекта |
+Restore dependencies:
 
-### Элементы управления
-
-| Кнопка | Описание |
-|--------|----------|
-| **🔍 НАЧАТЬ ПРОВЕРКУ** | Запуск сканирования системы |
-| **📂 Открыть папки** | Открыть папки с найденными подозрительными файлами |
-| **📄 Открыть отчёт** | Открыть HTML-отчёт в браузере |
-
-### Управление окном
-
-| Кнопка | Действие |
-|--------|----------|
-| **─** | Свернуть окно |
-| **□** | Развернуть/восстановить окно |
-| **✕** | Закрыть приложение |
-| **Двойной клик по шапке** | Развернуть/восстановить окно |
-| **Перетаскивание за шапку** | Перемещение окна |
-
----
-
-## ✨ Возможности
-
-### 🔍 Сканирование
-
-| Компонент | Описание |
-|-----------|----------|
-| **Процессы** | Проверка запущенных процессов на наличие известных сигнатур читов |
-| **Файлы** | Сканирование файловой системы, анализ DLL/EXE файлов |
-| **Архивы** | Проверка архивов (ZIP, RAR, 7z) без распаковки |
-| **Браузеры** | Анализ истории, кэша, сессий Chrome, Firefox, Edge |
-| **Реестр** | Проверка автозагрузки и ключей реестра |
-
-### 📊 Отчётность
-
-- **HTML-отчёт** — красивый интерактивный отчёт в браузере
-- **JSON-отчёт** — машиночитаемый формат для интеграции
-- **Логирование** — подробные логи в папке `Logs/`
-
-### 🎨 Интерфейс
-
-- **Тёмная тема** — фиолетово-розовый градиент
-- **Адаптивность** — подстраивается под размер окна
-- **Минимальный размер** — 1000×700 px
-- **Кастомная шапка** — без стандартных элементов Windows
-
----
-
-## 🎯 Детектируемые читы
-
-### CS2 / CSGO
-**Osiris, Neverlose, Skeet, Primordial, Legendware, Midgar, Nixware**
-
-### Roblox
-**Synapse X, Krnl, Scriptware, Fluxus, Oxygen U, Electron**
-
-### Инструменты
-**KDMapper, Extreme Injector, ExLoader, Process Hacker, Cheat Engine**
-
-### Другие
-**Конфиги читов, подписи вредоносного ПО, подозрительные импорты**
-
----
-
-## � Как использовать
-
-### 1. Запуск программы
-
-```bash
-# Двойной клик по InrideFair.exe
-# Или из командной строки:
-InrideFair.exe
-
-# Консольный режим (сканирование без GUI):
-InrideFair.exe --scan
+```powershell
+dotnet restore InrideFair.sln
 ```
 
-### 2. Начало сканирования
+Build the solution:
 
-1. Откройте программу
-2. Нажмите **"🔍 НАЧАТЬ ПРОВЕРКУ"**
-3. Дождитесь завершения (прогресс-бар)
-4. Просмотрите результаты
-
-### 3. Просмотр результатов
-
-- **Детали сканирования** — краткая сводка в интерфейсе
-- **Журнал событий** — пошаговый лог процесса
-- **HTML-отчёт** — откройте кнопкой "📄 Открыть отчёт"
-
-### 4. Действия при обнаружении угроз
-
-1. Нажмите **"📂 Открыть папки"** для перехода к файлам
-2. Удалите подозрительные файлы вручную
-3. Запустите повторное сканирование
-
----
-
-## ⚠️ Частые проблемы
-
-### 1. Windows Defender блокирует запуск
-
-**Решение:**
-```
-1. Нажмите "Подробнее"
-2. Выберите "Выполнить в любом случае"
-3. Или добавьте в исключения Defender
+```powershell
+dotnet build InrideFair.sln -c Release
 ```
 
-### 2. Ошибка "Отказано в доступе"
+Run tests:
 
-**Решение:**
-```
-1. Нажмите правой кнопкой на InrideFair.exe
-2. Выберите "Запуск от имени администратора"
+```powershell
+dotnet test InrideFair.sln -c Release
 ```
 
-### 3. Долгая проверка
+Run the desktop app:
 
-**Решение:**
-- Нормально для первого запуска
-- Закройте браузеры для ускорения
-- Проверка архивов может занять время
-
-### 4. Ложные срабатывания
-
-**Решение:**
-- Проверьте файл вручную
-- Отправьте на VirusTotal
-- Добавьте в исключения если уверены
-
-### 5. Не открывается окно
-
-**Решение:**
-```bash
-# Завершите все процессы InrideFair.exe
-taskkill /F /IM InrideFair.exe
-
-# Запустите снова
-InrideFair.exe
+```powershell
+dotnet run --project InrideFair/InrideFair.csproj -c Release
 ```
 
----
+## Release Packaging
 
-## �👨‍💻 Для разработчиков
+Build a full self-contained release in `Release/`:
 
-### Сборка из исходного кода
-
-```bash
-# Сборка GUI версии
-dotnet build InrideFair\InrideFair.csproj -c Release
-
-# Публикация (self-contained, один EXE)
-dotnet publish InrideFair\InrideFair.csproj -c Release -r win-x64 ^
-    --self-contained true ^
-    -p:PublishSingleFile=true ^
-    -p:EnableCompressionInSingleFile=true ^
-    -o Release
-
-# Запуск через dotnet
-dotnet run --project InrideFair\InrideFair.csproj
-
-# Консольный режим сканирования
-dotnet run --project InrideFair\InrideFair.csproj -- --scan
-
-# Автоматическая сборка (PowerShell)
+```powershell
 .\build_release.ps1
+```
 
-# Публикация чистой версии для распространения
+or:
+
+```powershell
+.\publish_release.ps1
+```
+
+Build a compact portable package in `Distribution/`:
+
+```powershell
 .\publish_distribution.ps1
 ```
 
-### Структура проекта
+## Reports and Logs
 
-```
-InrideFairC#/
-├── InrideFair.sln              # Решение Visual Studio
-├── InrideFair/                 # Основной проект
-│   ├── App.xaml                # Точка входа WPF
-│   ├── App.xaml.cs             # Логика приложения
-│   ├── Program.cs              # Резервная точка входа
-│   ├── Config/                 # Константы и сигнатуры
-│   ├── Models/                 # Модели данных
-│   ├── Database/               # База данных сигнатур (SQLite)
-│   ├── Utils/                  # Утилиты (ProcessUtils, FileUtils)
-│   ├── Checkers/               # Модули проверки
-│   │   ├── ProcessChecker.cs   # Проверка процессов
-│   │   ├── FileSystemChecker.cs # Проверка файлов
-│   │   ├── ArchiveChecker.cs   # Проверка архивов
-│   │   ├── BrowserChecker.cs   # Проверка браузеров
-│   │   └── RegistryChecker.cs  # Проверка реестра
-│   ├── Scanner/                # Сервис сканирования
-│   ├── Services/               # Сервисы (Logging, DI, Reports)
-│   └── UI/                     # WPF интерфейс
-│       ├── MainWindow.xaml     # Главное окно
-│       └── MainWindow.xaml.cs  # Логика окна
-├── config.json                 # Конфигурация
-├── build_release.ps1           # Скрипт сборки
-├── publish_release.ps1         # Публикация Release
-├── publish_distribution.ps1    # Публикация для распространения
-└── Release/                    # Скомпилированная версия
-└── Distribution/               # Чистая версия для пользователей
-```
+- Runtime logs are written into `Logs/`
+- JSON and HTML reports are produced next to the executable or working directory
+- False positives are possible and should be manually reviewed
 
-### Технологии
+## Security Notes
 
-| Компонент | Технология |
-|-----------|------------|
-| **Язык** | C# 12.0 |
-| **Фреймворк** | .NET 11.0 |
-| **UI** | WPF (Windows Presentation Foundation) |
-| **DI** | Microsoft.Extensions.DependencyInjection |
-| **Логирование** | Serilog |
-| **База данных** | SQLite (Microsoft.Data.Sqlite) |
-| **Архивы** | System.IO.Compression |
+- The application does not delete files automatically
+- Running as administrator improves scan coverage
+- Some antivirus products may flag self-contained single-file executables heuristically
 
----
+## GitHub Releases
 
-## 🔒 Безопасность
+GitHub Actions creates release artifacts automatically when a tag like `v1.1.0` is pushed.
 
-### Что делает программа:
-- ✅ Сканирует файлы и процессы
-- ✅ Читает историю браузеров
-- ✅ Проверяет реестр
-- ✅ Создаёт отчёты
+## License
 
-### Что программа НЕ делает:
-- ❌ Не удаляет файлы автоматически
-- ❌ Не вносит изменения в систему
-- ❌ Не отправляет данные в интернет
-- ❌ Не требует постоянного подключения
-
-### Конфиденциальность
-
-Все данные остаются на вашем компьютере. Логи и отчёты хранятся локально в папке программы.
-
----
-
-## 📄 Лицензия
-
-**MIT License** — см. файл [LICENSE](LICENSE)
-
-### Разрешения:
-- ✅ Коммерческое использование
-- ✅ Модификация
-- ✅ Распространение
-- ✅ Частное использование
-
-### Ограничения:
-- ❌ Предоставление гарантии
-- ❌ Ответственность за ущерб
-
----
-
-## 🙏 Благодарности
-
-- **Serilog** — логирование
-- **CommunityToolkit.Mvvm** — MVVM паттерны
-- **Microsoft.Extensions** — Dependency Injection
-- **SQLite** — база данных сигнатур
-
----
-
-## 📝 Changelog
-
-### v1.0.0 (2026) — Первая стабильная версия
-
-- ✨ Новый современный интерфейс с тёмной темой
-- ✨ Боковое навигационное меню
-- ✨ Кастомная шапка окна (тёмная)
-- ✨ HTML-отчёты с красивым дизайном
-- ✨ Dependency Injection
-- ✨ Потокобезопасное логирование
-- 🐛 Исправлены ошибки асинхронности
-- 🐛 Улучшена производительность сканирования
-- 🎨 Адаптивный интерфейс
-- 🎨 Градиентный фон
-- 🎨 Стилизованные скроллбары
-
----
-
-© 2026 Inride Software. Все права защищены.
-
-**Inride Fair** — Надёжная защита от читов 🛡️
->>>>>>> e58cd18 (Initial commit: Inride Fair v1.0.0)
+MIT. See [LICENSE](LICENSE).

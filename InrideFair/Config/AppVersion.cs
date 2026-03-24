@@ -11,17 +11,17 @@ public static class AppVersion
     private static readonly Version? Version = Assembly.GetName().Version;
 
     /// <summary>
-    /// Полная версия приложения (например, "1.0.0").
+    /// Полная версия приложения (например, "1.1.0").
     /// </summary>
-    public static string Full => Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "1.0.0";
+    public static string Full => Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "1.1.0";
 
     /// <summary>
-    /// Короткая версия (например, "1.0").
+    /// Короткая версия (например, "1.1").
     /// </summary>
-    public static string Short => Version != null ? $"{Version.Major}.{Version.Minor}" : "1.0";
+    public static string Short => Version != null ? $"{Version.Major}.{Version.Minor}" : "1.1";
 
     /// <summary>
-    /// Версия для отображения (например, "v1.0.0").
+    /// Версия для отображения (например, "v1.1.0").
     /// </summary>
     public static string Display => $"v{Full}";
 

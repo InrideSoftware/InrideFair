@@ -36,15 +36,15 @@ public static class ServiceContainer
         // База данных
         services.AddSingleton<CheatDatabase>();
 
-        // Чекеры
-        services.AddSingleton<ProcessChecker>();
-        services.AddSingleton<FileSystemChecker>();
-        services.AddSingleton<ArchiveChecker>();
-        services.AddSingleton<BrowserChecker>();
-        services.AddSingleton<RegistryChecker>();
+        // Чекеры (transient: содержат mutable state FoundCheats)
+        services.AddTransient<ProcessChecker>();
+        services.AddTransient<FileSystemChecker>();
+        services.AddTransient<ArchiveChecker>();
+        services.AddTransient<BrowserChecker>();
+        services.AddTransient<RegistryChecker>();
 
-        // Сканер
-        services.AddSingleton<ScannerService>();
+        // Сканер (transient: безопасно создавать новый для каждого запуска проверки)
+        services.AddTransient<ScannerService>();
 
         // Сервис отчётов
         services.AddSingleton<IReportService, ReportService>();

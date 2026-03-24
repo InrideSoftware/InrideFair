@@ -1,0 +1,8 @@
+{
+  "CustomExclusions": [
+    "C:\\Program Files",
+    "C:\\Program Files (x86)",
+    "C:\\Windows"
+  ],
+  "CustomSignatures": []
+}

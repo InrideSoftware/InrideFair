@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using InrideFair.Config;
 using InrideFair.Database;
+using InrideFair.Models;
 using InrideFair.Services;
 using InrideFair.Utils;
 using Microsoft.Data.Sqlite;
@@ -14,7 +15,7 @@ namespace InrideFair.Checkers;
 public partial class BrowserChecker
 {
     private readonly CheatDatabase _cheatDb;
-    public List<Dictionary<string, object?>> FoundCheats { get; } = [];
+    public List<DetectedThreat> FoundCheats { get; } = [];
     private readonly string _osName;
     private readonly Dictionary<string, string> _browserPaths;
 

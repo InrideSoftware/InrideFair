@@ -1,4 +1,5 @@
 using InrideFair.Database;
+using InrideFair.Models;
 using InrideFair.Utils;
 
 namespace InrideFair.Checkers;
@@ -9,7 +10,7 @@ namespace InrideFair.Checkers;
 public class ProcessChecker
 {
     private readonly CheatDatabase _cheatDb;
-    public List<Dictionary<string, object?>> FoundCheats { get; } = [];
+    public List<DetectedThreat> FoundCheats { get; } = [];
 
     public ProcessChecker(CheatDatabase cheatDb)
     {
@@ -30,12 +31,13 @@ public class ProcessChecker
             {
                 if (procLower.Contains(cheatSig.ToLower()) && !IsLegitimateProcess(procLower))
                 {
-                    FoundCheats.Add(new Dictionary<string, object?>
+                    FoundCheats.Add(new DetectedThreat
                     {
-                        ["type"] = "process",
-                        ["name"] = proc,
-                        ["signature"] = cheatSig,
-                        ["risk"] = "high"
+                        Type = "process",
+                        Name = proc,
+                        Signature = cheatSig,
+                        Match = cheatSig,
+                        Risk = "high"
                     });
                     break;
                 }

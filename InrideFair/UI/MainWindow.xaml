@@ -1,19 +1,21 @@
 <Window x:Class="InrideFair.UI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:config="clr-namespace:InrideFair.Config"
         Title="Inride Fair"
         Height="880" Width="1300"
         MinHeight="700" MinWidth="1000"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         AllowsTransparency="True"
-        ResizeMode="CanResizeWithGrip">
+        ResizeMode="CanResizeWithGrip"
+        PreviewMouseWheel="Window_PreviewMouseWheel">
 
     <Window.Background>
         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#1a0f2e" Offset="0"/>
-            <GradientStop Color="#2d1f4e" Offset="0.5"/>
-            <GradientStop Color="#4a1f3f" Offset="1"/>
+            <GradientStop Color="#0B1220" Offset="0"/>
+            <GradientStop Color="#111827" Offset="0.5"/>
+            <GradientStop Color="#1E293B" Offset="1"/>
         </LinearGradientBrush>
     </Window.Background>
 
@@ -33,7 +35,7 @@
 
         <!-- Custom Title Bar -->
         <Border Grid.Column="0" Grid.ColumnSpan="2"
-                Background="#0f051a"
+            Background="#0A0F1A"
                 Height="30"
                 VerticalAlignment="Top"
                 MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
@@ -45,11 +47,11 @@
 
                 <!-- Logo and Title -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
-                    <TextBlock Text="🛡️" FontSize="18" Margin="0,0,8,0"/>
+                    <Image Source="pack://application:,,,/inride_fair.png" Width="20" Height="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                               FontSize="13"
                               FontWeight="SemiBold"
-                              Foreground="#c084fc"
+                              Foreground="#67E8F9"
                               VerticalAlignment="Center"/>
                 </StackPanel>
 
@@ -58,7 +60,7 @@
                     <Button Content="─"
                             Width="45" Height="30"
                             Background="Transparent"
-                            Foreground="#a0a0b0"
+                            Foreground="{StaticResource SecondaryText}"
                             BorderThickness="0"
                             FontSize="16"
                             Cursor="Hand"
@@ -73,7 +75,7 @@
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#2a2a4a"/>
+                                                    <Setter Property="Background" Value="#1F2937"/>
                                                     <Setter Property="Foreground" Value="#ffffff"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
@@ -86,7 +88,7 @@
                     <Button Content="□"
                             Width="45" Height="30"
                             Background="Transparent"
-                            Foreground="#a0a0b0"
+                            Foreground="{StaticResource SecondaryText}"
                             BorderThickness="0"
                             FontSize="12"
                             Cursor="Hand"
@@ -101,7 +103,7 @@
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#2a2a4a"/>
+                                                    <Setter Property="Background" Value="#1F2937"/>
                                                     <Setter Property="Foreground" Value="#ffffff"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
@@ -114,7 +116,7 @@
                     <Button Content="✕"
                             Width="45" Height="30"
                             Background="Transparent"
-                            Foreground="#a0a0b0"
+                            Foreground="{StaticResource SecondaryText}"
                             BorderThickness="0"
                             FontSize="14"
                             Cursor="Hand"
@@ -144,7 +146,7 @@
         </Border>
 
         <!-- Left Sidebar Menu -->
-        <Border Grid.Column="0" Background="#1a0f2e" BorderBrush="#3a2a5a" BorderThickness="0,0,1,0" Margin="0,30,0,0">
+        <Border Grid.Column="0" Background="#0F172A" BorderBrush="#334155" BorderThickness="0,0,1,0" Margin="0,30,0,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -153,9 +155,9 @@
                 </Grid.RowDefinitions>
 
                 <!-- App Logo & Title -->
-                <Border Grid.Row="0" Padding="20,25,20,20" Background="#2d1f4e">
+                <Border Grid.Row="0" Padding="20,25,20,20" Background="#111827">
                     <StackPanel>
-                        <TextBlock Text="🛡️" FontSize="40" HorizontalAlignment="Center"/>
+                        <Image Source="pack://application:,,,/inride_fair.png" Width="50" Height="50" HorizontalAlignment="Center"/>
                         <TextBlock Text="Inride Fair"
                                   FontSize="20"
                                   FontWeight="Bold"
@@ -164,15 +166,15 @@
                                   Margin="0,8,0,3"/>
                         <TextBlock x:Name="VersionTextBlock"
                                   FontSize="11"
-                                  Foreground="#a0a0b0"
+                              Foreground="{StaticResource TertiaryText}"
                                   HorizontalAlignment="Center"/>
-                        <Border Background="#3a2a5a"
+                        <Border Background="{StaticResource PanelAltBackground}"
                                 CornerRadius="4"
                                 Padding="8,6"
                                 Margin="0,10,0,0">
                             <TextBlock Text="Anti-Cheat Scanner"
                                       FontSize="10"
-                                      Foreground="#c084fc"
+                                      Foreground="#67E8F9"
                                       HorizontalAlignment="Center"
                                       FontWeight="SemiBold"/>
                         </Border>
@@ -184,7 +186,7 @@
                     <TextBlock x:Name="MenuHeaderText" Text="МЕНЮ"
                               FontSize="11"
                               FontWeight="Bold"
-                              Foreground="#6a6a80"
+                              Foreground="#7C8BA1"
                               Margin="0,0,0,15"
                               HorizontalAlignment="Center"/>
 
@@ -224,7 +226,12 @@
                             Click="MenuButton_Click"
                             HorizontalAlignment="Stretch">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="👨‍💻" FontSize="18" Width="24" HorizontalAlignment="Center"/>
+                            <Border Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Border.Clip>
+                                    <EllipseGeometry RadiusX="12" RadiusY="12" Center="12,12"/>
+                                </Border.Clip>
+                                <Image Source="pack://application:,,,/photo_2026-03-02_12-09-40.jpg" Width="24" Height="24" Stretch="UniformToFill"/>
+                            </Border>
                             <TextBlock Text=" О разработчике" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Margin="4,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
@@ -234,22 +241,59 @@
                             Click="MenuButton_Click"
                             HorizontalAlignment="Stretch">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock Text="🐦" FontSize="18" Width="24" HorizontalAlignment="Center"/>
+                            <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path Data="M7,7 L7,17 M7,12 L17,12"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.8"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"/>
+                                <Ellipse Width="5" Height="5"
+                                         Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                         StrokeThickness="1.8"
+                                         Fill="Transparent"
+                                         HorizontalAlignment="Left"
+                                         VerticalAlignment="Top"
+                                         Margin="4.5,4.5,0,0"/>
+                                <Ellipse Width="5" Height="5"
+                                         Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                         StrokeThickness="1.8"
+                                         Fill="Transparent"
+                                         HorizontalAlignment="Left"
+                                         VerticalAlignment="Top"
+                                         Margin="4.5,14.5,0,0"/>
+                                <Ellipse Width="5" Height="5"
+                                         Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                         StrokeThickness="1.8"
+                                         Fill="Transparent"
+                                         HorizontalAlignment="Left"
+                                         VerticalAlignment="Top"
+                                         Margin="14.5,9.5,0,0"/>
+                            </Grid>
                             <TextBlock Text=" GitHub" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Margin="4,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
 
                 <!-- Footer -->
-                <Border Grid.Row="2" Padding="20" Background="#2d1f4e">
+                <Border Grid.Row="2" Padding="20" Background="#111827">
                     <StackPanel>
+                                                <TextBlock x:Name="SidebarProgressLabel"
+                                                                    Text="Готово: 0%"
+                                                                    FontSize="10"
+                                                                    Foreground="#9FB4D4"
+                                                                    HorizontalAlignment="Center"/>
+                                                <ProgressBar x:Name="SidebarProgressBar"
+                                                                        Style="{StaticResource SidebarProgressBarStyle}"
+                                                                        Value="0"/>
                         <TextBlock Text="© 2026 Inride Software"
                                   FontSize="10"
-                                  Foreground="#6a6a80"
-                                  HorizontalAlignment="Center"/>
+                                  Foreground="#8FA2C2"
+                                                                    HorizontalAlignment="Center"
+                                                                    Margin="0,10,0,0"/>
                         <TextBlock Text="Все права защищены"
                                   FontSize="9"
-                                  Foreground="#5a5a70"
+                                  Foreground="#72839D"
                                   HorizontalAlignment="Center"
                                   Margin="0,5,0,0"/>
                     </StackPanel>
@@ -258,15 +302,21 @@
         </Border>
 
         <!-- Main Content Area -->
-        <Grid Grid.Column="1" Margin="30,60,30,30">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+        <ScrollViewer x:Name="MainContentScroll"
+                      Grid.Column="1"
+                      Margin="30,60,30,30"
+                      VerticalScrollBarVisibility="Hidden"
+                      HorizontalScrollBarVisibility="Disabled"
+                      PanningMode="VerticalOnly">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
             <!-- Home View -->
             <Grid x:Name="HomeView">
@@ -274,7 +324,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -332,7 +382,7 @@
                                 Background="{StaticResource CardBackground}" 
                                 CornerRadius="20" 
                                 Padding="20,10"
-                                BorderBrush="#3a3a5a"
+                            BorderBrush="#334155"
                                 BorderThickness="1">
                             <TextBlock Text="ОЖИДАНИЕ" 
                                       FontSize="12" 
@@ -364,50 +414,60 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Column="1" Background="#3a1a2a" CornerRadius="12" Padding="20" Margin="10,0">
+                    <Border Grid.Column="1" Background="{StaticResource CardBackground}" CornerRadius="12" Padding="20" Margin="10,0">
                         <StackPanel>
-                            <TextBlock Text="ВЫСОКИЙ РИСК" FontSize="11" Foreground="#f472b6" FontWeight="SemiBold"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="8" Height="8" CornerRadius="4" Background="#F472B6" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="ВЫСОКИЙ РИСК" FontSize="11" Foreground="{StaticResource SecondaryText}" FontWeight="SemiBold"/>
+                            </StackPanel>
                             <TextBlock x:Name="HighRiskCount" Text="0" FontSize="36" FontWeight="Bold" Foreground="#f472b6" Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Column="2" Background="#3a2a1a" CornerRadius="12" Padding="20" Margin="10,0">
+                    <Border Grid.Column="2" Background="{StaticResource CardBackground}" CornerRadius="12" Padding="20" Margin="10,0">
                         <StackPanel>
-                            <TextBlock Text="СРЕДНИЙ РИСК" FontSize="11" Foreground="#fbbf24" FontWeight="SemiBold"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="8" Height="8" CornerRadius="4" Background="#FBBF24" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="СРЕДНИЙ РИСК" FontSize="11" Foreground="{StaticResource SecondaryText}" FontWeight="SemiBold"/>
+                            </StackPanel>
                             <TextBlock x:Name="MediumRiskCount" Text="0" FontSize="36" FontWeight="Bold" Foreground="#fbbf24" Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Column="3" Background="#1a3a2a" CornerRadius="12" Padding="20" Margin="10,0">
+                    <Border Grid.Column="3" Background="{StaticResource CardBackground}" CornerRadius="12" Padding="20" Margin="10,0">
                         <StackPanel>
-                            <TextBlock Text="НИЗКИЙ РИСК" FontSize="11" Foreground="#34d399" FontWeight="SemiBold"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="8" Height="8" CornerRadius="4" Background="#34D399" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="НИЗКИЙ РИСК" FontSize="11" Foreground="{StaticResource SecondaryText}" FontWeight="SemiBold"/>
+                            </StackPanel>
                             <TextBlock x:Name="LowRiskCount" Text="0" FontSize="36" FontWeight="Bold" Foreground="#34d399" Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
                 </Grid>
 
                 <!-- Details & Log Section (Side by Side) -->
-                <Grid Grid.Row="3" Margin="0,0,0,15">
+                <Grid Grid.Row="3" Margin="0,0,0,15" Height="200" MinHeight="200" MaxHeight="200">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- Details Section -->
-                    <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,7,0">
+                    <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,7,0" Height="200" MinHeight="200" MaxHeight="200">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Text="📊 Детали сканирования" Style="{StaticResource SectionTitleStyle}"/>
+                            <TextBlock Grid.Row="0" Text="Детали сканирования" Style="{StaticResource SectionTitleStyle}"/>
 
                             <TextBox Grid.Row="1" x:Name="DetailsText" 
                                     Style="{StaticResource LogTextBoxStyle}"
                                     VerticalAlignment="Stretch"
                                     VerticalContentAlignment="Top"
                                     TextWrapping="Wrap"
+                                    VerticalScrollBarVisibility="Visible"
                                     AcceptsReturn="True"
                                     TextAlignment="Left">
                                 <TextBox.Text>
@@ -422,20 +482,21 @@
                     </Border>
 
                     <!-- Log Section -->
-                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="7,0,0,0">
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="7,0,0,0" Height="200" MinHeight="200" MaxHeight="200">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Text="📋 Журнал событий" Style="{StaticResource SectionTitleStyle}"/>
+                            <TextBlock Grid.Row="0" Text="Журнал событий" Style="{StaticResource SectionTitleStyle}"/>
 
                             <TextBox Grid.Row="1" x:Name="LogText" 
                                     Style="{StaticResource LogTextBoxStyle}"
                                     VerticalAlignment="Stretch"
                                     VerticalContentAlignment="Top"
                                     TextWrapping="Wrap"
+                                    VerticalScrollBarVisibility="Visible"
                                     AcceptsReturn="True"
                                     TextAlignment="Left">
                                 <TextBox.Text>Ожидание запуска проверки...
@@ -448,7 +509,7 @@
                 <!-- Action Buttons -->
                 <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,30">
                     <Button x:Name="ScanButton"
-                            Content="🔍 НАЧАТЬ ПРОВЕРКУ"
+                            Content="НАЧАТЬ ПРОВЕРКУ"
                             Style="{StaticResource PrimaryButtonStyle}"
                             Width="280"
                             Click="ScanButton_Click"/>
@@ -457,7 +518,7 @@
                 <!-- Secondary Buttons -->
                 <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Center">
                     <Button x:Name="OpenFolderButton"
-                            Content="📂 Открыть папки"
+                        Content="Открыть папки"
                             Style="{StaticResource SecondaryButtonStyle}"
                             Width="160"
                             Margin="0,0,15,0"
@@ -465,7 +526,7 @@
                             Click="OpenFolderButton_Click"/>
 
                     <Button x:Name="OpenReportButton"
-                            Content="📄 Открыть отчёт"
+                        Content="Открыть отчёт"
                             Style="{StaticResource SecondaryButtonStyle}"
                             Width="160"
                             IsEnabled="False"
@@ -482,7 +543,7 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="20">
                             <TextBlock Text="О программе" Style="{StaticResource SectionTitleStyle}" FontSize="24"/>
-                            <Border Height="2" Background="#3a2a5a" Margin="0,10,0,30"/>
+                            <Border Height="2" Background="{StaticResource PanelAltBackground}" Margin="0,10,0,30"/>
 
                             <TextBlock Text="Inride Fair — система обнаружения читов"
                                       FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource PrimaryText}" Margin="0,0,0,15"/>
@@ -501,10 +562,10 @@
                             </StackPanel>
                             
                             <TextBlock Text="Техническая информация:" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource PrimaryText}" Margin="0,0,0,15"/>
-                            <Border Background="#2d1f4e" CornerRadius="8" Padding="15" Margin="0,0,0,20">
+                            <Border Background="{StaticResource PanelAltBackground}" CornerRadius="8" Padding="15" Margin="0,0,0,20">
                                 <StackPanel>
                                     <TextBlock FontSize="13" Foreground="{StaticResource SecondaryText}" Margin="0,5">
-                                        <Run FontWeight="SemiBold" Foreground="{StaticResource TertiaryText}">Версия:</Run> 1.0.0
+                                        <Run FontWeight="SemiBold" Foreground="{StaticResource TertiaryText}">Версия:</Run> <Run Text="{x:Static config:AppVersion.Full}"/>
                                     </TextBlock>
                                     <TextBlock FontSize="13" Foreground="{StaticResource SecondaryText}" Margin="0,5">
                                         <Run FontWeight="SemiBold" Foreground="{StaticResource TertiaryText}">Платформа:</Run> .NET 11.0
@@ -534,53 +595,53 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="20">
                             <TextBlock Text="Вопросы и ответы" Style="{StaticResource SectionTitleStyle}" FontSize="24"/>
-                            <Border Height="2" Background="#3a2a5a" Margin="0,10,0,30"/>
+                            <Border Height="2" Background="{StaticResource PanelAltBackground}" Margin="0,10,0,30"/>
                             
                             <!-- Q1 -->
-                            <Border Background="#2d1f4e" CornerRadius="10" Padding="20" Margin="0,0,0,15">
+                            <Border Background="{StaticResource PanelAltBackground}" CornerRadius="10" Padding="20" Margin="0,0,0,15">
                                 <StackPanel>
                                     <TextBlock Text="❓ Что такое Inride Fair?" 
-                                              FontSize="16" FontWeight="SemiBold" Foreground="#c084fc" Margin="0,0,0,10"/>
+                                              FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource AccentText}" Margin="0,0,0,10"/>
                                     <TextBlock Text="Inride Fair — это утилита для обнаружения читов, вредоносного ПО и подозрительной активности в системе. Программа сканирует процессы, файлы, архивы, браузеры и реестр на наличие известных сигнатур читов." 
                                               FontSize="14" Foreground="{StaticResource SecondaryText}" TextWrapping="Wrap" LineHeight="22"/>
                                 </StackPanel>
                             </Border>
                             
                             <!-- Q2 -->
-                            <Border Background="#2d1f4e" CornerRadius="10" Padding="20" Margin="0,0,0,15">
+                            <Border Background="{StaticResource PanelAltBackground}" CornerRadius="10" Padding="20" Margin="0,0,0,15">
                                 <StackPanel>
                                     <TextBlock Text="❓ Как работает сканирование?" 
-                                              FontSize="16" FontWeight="SemiBold" Foreground="#c084fc" Margin="0,0,0,10"/>
+                                              FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource AccentText}" Margin="0,0,0,10"/>
                                     <TextBlock Text="Программа использует базу данных сигнатур известных читов и сравнивает их с файлами и процессами в системе. Также проводится эвристический анализ для выявления подозрительного поведения." 
                                               FontSize="14" Foreground="{StaticResource SecondaryText}" TextWrapping="Wrap" LineHeight="22"/>
                                 </StackPanel>
                             </Border>
                             
                             <!-- Q3 -->
-                            <Border Background="#2d1f4e" CornerRadius="10" Padding="20" Margin="0,0,0,15">
+                            <Border Background="{StaticResource PanelAltBackground}" CornerRadius="10" Padding="20" Margin="0,0,0,15">
                                 <StackPanel>
                                     <TextBlock Text="❓ Безопасно ли использовать Inride Fair?" 
-                                              FontSize="16" FontWeight="SemiBold" Foreground="#c084fc" Margin="0,0,0,10"/>
+                                              FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource AccentText}" Margin="0,0,0,10"/>
                                     <TextBlock Text="Да, программа полностью безопасна. Она не вносит изменений в систему, не удаляет файлы и не требует прав администратора для базовой функциональности." 
                                               FontSize="14" Foreground="{StaticResource SecondaryText}" TextWrapping="Wrap" LineHeight="22"/>
                                 </StackPanel>
                             </Border>
                             
                             <!-- Q4 -->
-                            <Border Background="#2d1f4e" CornerRadius="10" Padding="20" Margin="0,0,0,15">
+                            <Border Background="{StaticResource PanelAltBackground}" CornerRadius="10" Padding="20" Margin="0,0,0,15">
                                 <StackPanel>
                                     <TextBlock Text="❓ Как часто обновляется база сигнатур?" 
-                                              FontSize="16" FontWeight="SemiBold" Foreground="#c084fc" Margin="0,0,0,10"/>
+                                              FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource AccentText}" Margin="0,0,0,10"/>
                                     <TextBlock Text="База данных сигнатур обновляется с каждой версией программы. Рекомендуется регулярно обновлять Inride Fair для получения актуальных данных." 
                                               FontSize="14" Foreground="{StaticResource SecondaryText}" TextWrapping="Wrap" LineHeight="22"/>
                                 </StackPanel>
                             </Border>
                             
                             <!-- Q5 -->
-                            <Border Background="#2d1f4e" CornerRadius="10" Padding="20" Margin="0,0,0,15">
+                            <Border Background="{StaticResource PanelAltBackground}" CornerRadius="10" Padding="20" Margin="0,0,0,15">
                                 <StackPanel>
                                     <TextBlock Text="❓ Что делать, если найдены угрозы?" 
-                                              FontSize="16" FontWeight="SemiBold" Foreground="#c084fc" Margin="0,0,0,10"/>
+                                              FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource AccentText}" Margin="0,0,0,10"/>
                                     <TextBlock Text="После сканирования вы получите подробный отчёт со списком обнаруженных угроз. Используйте кнопку «Открыть папки» для перехода к файлам или удалите их вручную." 
                                               FontSize="14" Foreground="{StaticResource SecondaryText}" TextWrapping="Wrap" LineHeight="22"/>
                                 </StackPanel>
@@ -599,11 +660,15 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="20">
                             <TextBlock Text="О разработчике" Style="{StaticResource SectionTitleStyle}" FontSize="24"/>
-                            <Border Height="2" Background="#3a2a5a" Margin="0,10,0,30"/>
+                            <Border Height="2" Background="{StaticResource PanelAltBackground}" Margin="0,10,0,30"/>
                             
                             <StackPanel HorizontalAlignment="Center" Margin="0,0,0,30">
-                                <Border Width="120" Height="120" CornerRadius="60" Background="#3a2a5a">
-                                    <TextBlock Text="👨‍💻" FontSize="60" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Border Width="120" Height="120" CornerRadius="60" Background="{StaticResource PanelAltBackground}" ClipToBounds="True">
+                                    <Image Source="pack://application:,,,/photo_2026-03-02_12-09-40.jpg" Width="120" Height="120" Stretch="UniformToFill" RenderTransformOrigin="0.5,0.5">
+                                        <Image.Clip>
+                                            <EllipseGeometry RadiusX="60" RadiusY="60" Center="60,60"/>
+                                        </Image.Clip>
+                                    </Image>
                                 </Border>
                                 <TextBlock Text="Inride Software" 
                                           FontSize="22" FontWeight="Bold" Foreground="{StaticResource PrimaryText}" 
@@ -625,17 +690,17 @@
                                 <TextBlock Text="• Консалтинг по вопросам безопасности" FontSize="14" Foreground="{StaticResource SecondaryText}" Margin="0,5"/>
                             </StackPanel>
                             
-                            <Border Background="#2d1f4e" CornerRadius="10" Padding="20" Margin="0,0,0,20">
+                            <Border Background="{StaticResource PanelAltBackground}" CornerRadius="10" Padding="20" Margin="0,0,0,20">
                                 <StackPanel>
                                     <TextBlock Text="Контакты:" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource PrimaryText}" Margin="0,0,0,15"/>
                                     <TextBlock FontSize="14" Foreground="{StaticResource SecondaryText}" Margin="0,8">
-                                        <Run FontWeight="SemiBold" Foreground="#c084fc">Email:</Run> contact@inride.software
+                                        <Run FontWeight="SemiBold" Foreground="{StaticResource AccentText}">Email:</Run> contact@inride.software
                                     </TextBlock>
                                     <TextBlock FontSize="14" Foreground="{StaticResource SecondaryText}" Margin="0,8">
-                                        <Run FontWeight="SemiBold" Foreground="#c084fc">Website:</Run> inride.software
+                                        <Run FontWeight="SemiBold" Foreground="{StaticResource AccentText}">Website:</Run> inride.software
                                     </TextBlock>
                                     <TextBlock FontSize="14" Foreground="{StaticResource SecondaryText}" Margin="0,8">
-                                        <Run FontWeight="SemiBold" Foreground="#c084fc">Location:</Run> Worldwide
+                                        <Run FontWeight="SemiBold" Foreground="{StaticResource AccentText}">Location:</Run> Worldwide
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
@@ -654,7 +719,7 @@
                 </Grid.RowDefinitions>
                 <Border Style="{StaticResource CardStyle}" Grid.Row="0">
                     <StackPanel Margin="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock Text="🐙" FontSize="80" HorizontalAlignment="Center" Margin="0,0,0,30"/>
+                        <TextBlock Text="⌘" FontSize="80" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,30"/>
                         
                         <TextBlock Text="GitHub Repository" 
                                   FontSize="28" FontWeight="Bold" Foreground="{StaticResource PrimaryText}" 
@@ -665,7 +730,7 @@
                                   HorizontalAlignment="Center" Margin="0,0,0,40"/>
                         
                         <Button x:Name="OpenGitHubButton"
-                                Content="🚀 Перейти на GitHub"
+                                Content="→ Перейти на GitHub"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 Width="250"
                                 Click="OpenGitHubButton_Click"/>
@@ -683,6 +748,7 @@
                     </StackPanel>
                 </Border>
             </Grid>
-        </Grid>
+            </Grid>
+        </ScrollViewer>
     </Grid>
 </Window>

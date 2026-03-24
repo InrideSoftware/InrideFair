@@ -1,5 +1,6 @@
 using System.IO;
 using InrideFair.Database;
+using InrideFair.Models;
 using InrideFair.Services;
 using InrideFair.Utils;
 
@@ -11,7 +12,7 @@ namespace InrideFair.Checkers;
 public class ArchiveChecker
 {
     private readonly CheatDatabase _cheatDb;
-    public List<Dictionary<string, object?>> FoundCheats { get; } = [];
+    public List<DetectedThreat> FoundCheats { get; } = [];
 
     public ArchiveChecker(CheatDatabase cheatDb)
     {
@@ -54,9 +55,9 @@ public class ArchiveChecker
     /// <summary>
     /// Проверить содержимое архива.
     /// </summary>
-    public List<Dictionary<string, object?>> CheckArchiveContents(string archivePath)
+    public List<DetectedThreat> CheckArchiveContents(string archivePath)
     {
-        var found = new List<Dictionary<string, object?>>();
+        var found = new List<DetectedThreat>();
         var extractDir = ArchiveExtractor.ExtractArchive(archivePath);
 
         if (extractDir == null)
@@ -75,12 +76,15 @@ public class ArchiveChecker
                     {
                         if (nameLower == cheatFile.ToLower())
                         {
-                            found.Add(new Dictionary<string, object?>
+                            found.Add(new DetectedThreat
                             {
-                                ["path"] = item.FullName,
-                                ["match"] = cheatFile,
-                                ["archive"] = archivePath,
-                                ["exact_match"] = true
+                                Type = "archive",
+                                Path = item.FullName,
+                                FilePath = item.FullName,
+                                ArchivePath = archivePath,
+                                Match = cheatFile,
+                                ExactMatch = true,
+                                Risk = "medium"
                             });
                             break;
                         }
@@ -130,14 +134,7 @@ public class ArchiveChecker
             var found = CheckArchiveContents(archive);
             foreach (var item in found)
             {
-                FoundCheats.Add(new Dictionary<string, object?>
-                {
-                    ["type"] = "archive",
-                    ["archive_path"] = item["archive"],
-                    ["file_path"] = item["path"],
-                    ["match"] = item["match"],
-                    ["risk"] = "medium"
-                });
+                FoundCheats.Add(item);
                 totalFound++;
             }
         }

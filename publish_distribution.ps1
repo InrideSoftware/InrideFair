@@ -1,134 +1,74 @@
-﻿# Скрипт публикации Inride Fair - чистая версия для распространения
-# Создаёт папку с только необходимыми файлами для пользователей
+﻿# Подготовка компактной portable-версии для пользователей.
+
+param(
+    [string]$Version = ""
+)
 
 $ErrorActionPreference = "Stop"
 
-$PROJECT_PATH = "InrideFair\InrideFair.csproj"
-$RELEASE_PATH = "Release"
-$DISTRIBUTION_PATH = "Distribution"
-$CONFIGURATION = "Release"
+$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectPath = Join-Path $Root "InrideFair\InrideFair.csproj"
+$ReleasePath = Join-Path $Root "Release"
+$DistributionPath = Join-Path $Root "Distribution"
 
-Write-Host "=== Публикация Inride Fair (Чистая версия) ===" -ForegroundColor Cyan
-Write-Host "Конфигурация: $CONFIGURATION" -ForegroundColor Gray
-
-# Очистка папки Distribution
-Write-Host "`n[1/4] Очистка папки Distribution..." -ForegroundColor Yellow
-if (Test-Path $DISTRIBUTION_PATH) {
-    Remove-Item -Path $DISTRIBUTION_PATH\* -Recurse -Force -ErrorAction SilentlyContinue
-} else {
-    New-Item -ItemType Directory -Path $DISTRIBUTION_PATH | Out-Null
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    [xml]$projectXml = Get-Content $ProjectPath -Raw
+    $Version = $projectXml.Project.PropertyGroup.Version
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        $Version = "1.1.0"
+    }
 }
 
-# Публикация проекта
-Write-Host "`n[2/4] Публикация проекта..." -ForegroundColor Yellow
-dotnet publish $PROJECT_PATH `
-    -c $CONFIGURATION `
-    --self-contained true `
-    -r win-x64 `
-    -p:PublishSingleFile=true `
-    -p:EnableCompressionInSingleFile=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true `
-    --output $RELEASE_PATH
+$Version = $Version.Trim()
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Ошибка публикации!" -ForegroundColor Red
-    exit 1
+Write-Host "=== Inride Fair Distribution Builder v$Version ===" -ForegroundColor Cyan
+
+if (Test-Path $DistributionPath) {
+    Remove-Item -Path $DistributionPath -Recurse -Force
+}
+New-Item -ItemType Directory -Path $DistributionPath | Out-Null
+
+& (Join-Path $Root "publish_release.ps1") -Version $Version
+
+Write-Host "Копирование файлов в Distribution..." -ForegroundColor Yellow
+Copy-Item (Join-Path $ReleasePath "InrideFair.exe") (Join-Path $DistributionPath "InrideFair.exe") -Force
+Copy-Item (Join-Path $ReleasePath "config.json") (Join-Path $DistributionPath "config.json") -Force
+foreach ($docFile in @("README.md", "CHANGELOG.md", "LICENSE")) {
+    $source = Join-Path $Root $docFile
+    if (Test-Path $source) {
+        Copy-Item $source (Join-Path $DistributionPath $docFile) -Force
+    }
 }
 
-# Копирование необходимых файлов в Distribution
-Write-Host "`n[3/4] Копирование файлов для распространения..." -ForegroundColor Yellow
+$portableReadme = @"
+Inride Fair v$Version
+=====================
 
-# Копируем только EXE и конфигурацию
-Copy-Item "$RELEASE_PATH\InrideFair.exe" -Destination "$DISTRIBUTION_PATH\" -Force
-Copy-Item "InrideFair\config.json" -Destination "$DISTRIBUTION_PATH\" -Force
-Copy-Item "LICENSE" -Destination "$DISTRIBUTION_PATH\" -Force
-Copy-Item "README.md" -Destination "$DISTRIBUTION_PATH\" -Force
+Быстрый старт:
+1. Распакуйте архив в отдельную папку.
+2. Запустите InrideFair.exe от имени администратора.
+3. Дождитесь завершения проверки и откройте HTML-отчет.
 
-# Создаём краткую инструкцию
-$readmeContent = @"
-# Inride Fair v1.0.0 - Система обнаружения читов
+В состав portable-версии входят:
+- InrideFair.exe
+- config.json
+- README.md
+- CHANGELOG.md
+- LICENSE
 
-## 🚀 Быстрый старт
-
-1. Запустите `InrideFair.exe` от имени администратора (рекомендуется)
-2. Нажмите кнопку "НАЧАТЬ ПРОВЕРКУ"
-3. Дождитесь завершения сканирования
-4. Просмотрите отчёт (откроется автоматически)
-
-## 📋 Системные требования
-
-- ОС: Windows 10/11 x64
-- Память: 512 MB RAM
-- Место на диске: 100 MB
-
-## 🎮 Возможности
-
-✅ Сканирование процессов
-✅ Проверка файлов
-✅ Анализ архивов
-✅ Проверка браузеров
-✅ Сканирование реестра
-✅ HTML и JSON отчёты
-
-## ⚠️ Важно
-
-- Некоторые антивирусы могут ложно срабатывать на сканер
-- Для полной проверки требуются права администратора
-- Программа не удаляет файлы автоматически
-
-## 📞 Поддержка
-
-Если возникли вопросы или проблемы:
-1. Проверьте лог файл в папке Logs
-2. Убедитесь что у вас есть права администратора
-3. Попробуйте запустить от имени администратора
-
-## 📄 Лицензия
-
-© 2026 Inride Software. Все права защищены.
-
----
-**Версия:** 1.0.0  
-**Дата сборки:** $(Get-Date -Format "dd.MM.yyyy")  
-**Платформа:** Windows x64
+Примечания:
+- Для полной проверки рекомендуются права администратора.
+- Программа не удаляет файлы автоматически.
+- HTML и JSON отчеты создаются рядом с приложением.
 "@
+$portableReadme | Set-Content -Path (Join-Path $DistributionPath "README.txt") -Encoding UTF8
 
-$readmeContent | Out-File -FilePath "$DISTRIBUTION_PATH\README.txt" -Encoding UTF8
-
-Write-Host "  ✓ InrideFair.exe" -ForegroundColor Green
-Write-Host "  ✓ config.json" -ForegroundColor Green
-Write-Host "  ✓ LICENSE" -ForegroundColor Green
-Write-Host "  ✓ README.md" -ForegroundColor Green
-Write-Host "  ✓ README.txt (краткая инструкция)" -ForegroundColor Green
-
-# Итог
-Write-Host "`n=== Публикация завершена ===" -ForegroundColor Green
-Write-Host "Папка для распространения: $((Get-Item $DISTRIBUTION_PATH).FullName)" -ForegroundColor Gray
-
-$exePath = Join-Path (Get-Location) "$DISTRIBUTION_PATH\InrideFair.exe"
-$exeSize = (Get-ChildItem $exePath).Length / 1MB
-Write-Host "Размер EXE: $([math]::Round($exeSize, 2)) MB" -ForegroundColor Gray
-
-$totalSize = (Get-ChildItem $DISTRIBUTION_PATH -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
-Write-Host "Общий размер: $([math]::Round($totalSize, 2)) MB" -ForegroundColor Gray
-
-# Создание ZIP архива
-Write-Host "`n[4/4] Создание ZIP архива..." -ForegroundColor Yellow
-
-$zipFileName = "InrideFair_v1.0.0_$(Get-Date -Format 'yyyyMMdd_HHmmss').zip"
-$zipPath = Join-Path (Get-Location) $zipFileName
-
-# Удаляем старый архив если существует
+$zipFileName = "InrideFair_v${Version}_Portable_Windows_x64.zip"
+$zipPath = Join-Path $DistributionPath $zipFileName
 if (Test-Path $zipPath) {
     Remove-Item $zipPath -Force
 }
+Compress-Archive -Path (Join-Path $DistributionPath "InrideFair.exe"), (Join-Path $DistributionPath "config.json"), (Join-Path $DistributionPath "README.md"), (Join-Path $DistributionPath "CHANGELOG.md"), (Join-Path $DistributionPath "LICENSE"), (Join-Path $DistributionPath "README.txt") -DestinationPath $zipPath -Force
 
-# Создаём ZIP архив
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[System.IO.Compression.ZipFile]::CreateFromDirectory($DISTRIBUTION_PATH, $zipPath)
-
-$zipSize = (Get-Item $zipPath).Length / 1MB
-Write-Host "  ✓ $zipFileName ($([math]::Round($zipSize, 2)) MB)" -ForegroundColor Green
-
-Write-Host "`nГотово к распространению! 📦" -ForegroundColor Cyan
-Write-Host "Архив создан: $zipPath" -ForegroundColor Cyan
+Write-Host "Готово: $DistributionPath" -ForegroundColor Green
+Write-Host "Архив: $zipPath" -ForegroundColor Green

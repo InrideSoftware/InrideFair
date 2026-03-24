@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using InrideFair.Checkers;
 using InrideFair.Database;
+using InrideFair.Models;
 using InrideFair.Services;
 
 namespace InrideFair.Scanner;
@@ -44,6 +45,11 @@ public class ScannerService : IDisposable
     /// </summary>
     public async Task<ScanResult> RunScanAsync(IProgress<string>? progress = null)
     {
+        // Новый запуск должен стартовать с чистого буфера логов.
+        while (LogMessages.TryTake(out _))
+        {
+        }
+
         var results = new ScanResult
         {
             Processes = [],
@@ -103,12 +109,15 @@ public class ScannerService : IDisposable
                            results.Browser.Count + results.Registry.Count;
                 Log($"ИТОГО: {total} угроз", progress);
             });
+
+            results.Log = [.. LogMessages];
         }
         catch (Exception ex)
         {
             _logger.Error("Ошибка при сканировании", ex);
             results.Error = ex.ToString();
             Log($"ОШИБКА: {ex.Message}", progress);
+            results.Log = [.. LogMessages];
         }
 
         return results;
@@ -137,11 +146,11 @@ public class ScannerService : IDisposable
 /// </summary>
 public record ScanResult
 {
-    public List<Dictionary<string, object?>> Processes { get; set; } = [];
-    public List<Dictionary<string, object?>> Files { get; set; } = [];
-    public List<Dictionary<string, object?>> Archives { get; set; } = [];
-    public List<Dictionary<string, object?>> Browser { get; set; } = [];
-    public List<Dictionary<string, object?>> Registry { get; set; } = [];
+    public List<DetectedThreat> Processes { get; set; } = [];
+    public List<DetectedThreat> Files { get; set; } = [];
+    public List<DetectedThreat> Archives { get; set; } = [];
+    public List<DetectedThreat> Browser { get; set; } = [];
+    public List<DetectedThreat> Registry { get; set; } = [];
     public List<string> Log { get; set; } = [];
     public string? Error { get; set; }
 }

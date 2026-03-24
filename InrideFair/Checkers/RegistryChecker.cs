@@ -1,5 +1,6 @@
 using System.IO;
 using InrideFair.Database;
+using InrideFair.Models;
 using Microsoft.Win32;
 
 namespace InrideFair.Checkers;
@@ -10,7 +11,7 @@ namespace InrideFair.Checkers;
 public class RegistryChecker
 {
     private readonly CheatDatabase _cheatDb;
-    public List<Dictionary<string, object?>> FoundCheats { get; } = [];
+    public List<DetectedThreat> FoundCheats { get; } = [];
     private readonly string _osName;
 
     public RegistryChecker(CheatDatabase cheatDb)
@@ -23,9 +24,9 @@ public class RegistryChecker
     /// <summary>
     /// Проверить ключ реестра или директорию.
     /// </summary>
-    public List<Dictionary<string, object?>> CheckRegistryKey(object hiveOrPath, string? keyPath = null)
+    public List<DetectedThreat> CheckRegistryKey(object hiveOrPath, string? keyPath = null)
     {
-        var found = new List<Dictionary<string, object?>>();
+        var found = new List<DetectedThreat>();
 
         if (_osName == "Windows")
         {
@@ -50,13 +51,15 @@ public class RegistryChecker
                                 {
                                     if (!IsLegitimateGame(valueStr))
                                     {
-                                        found.Add(new Dictionary<string, object?>
+                                        found.Add(new DetectedThreat
                                         {
-                                            ["hive"] = keyInfo.Hive == RegistryHive.LocalMachine ? "HKLM" : "HKCU",
-                                            ["path"] = keyInfo.Path,
-                                            ["name"] = valueName,
-                                            ["value"] = value?.ToString(),
-                                            ["match"] = cheatSig
+                                            Type = "registry",
+                                            Hive = keyInfo.Hive == RegistryHive.LocalMachine ? "HKLM" : "HKCU",
+                                            Path = keyInfo.Path,
+                                            ValueName = valueName,
+                                            ValueData = value?.ToString() ?? "",
+                                            Match = cheatSig,
+                                            Risk = "high"
                                         });
                                     }
                                     break;
@@ -90,11 +93,12 @@ public class RegistryChecker
                                 {
                                     if (content.Contains(cheatSig.ToLower()))
                                     {
-                                        found.Add(new Dictionary<string, object?>
+                                        found.Add(new DetectedThreat
                                         {
-                                            ["path"] = item.FullName,
-                                            ["match"] = cheatSig,
-                                            ["type"] = "autostart"
+                                            Type = "autostart",
+                                            Path = item.FullName,
+                                            Match = cheatSig,
+                                            Risk = "high"
                                         });
                                         break;
                                     }
@@ -127,7 +131,7 @@ public class RegistryChecker
     /// </summary>
     public int CheckSystem()
     {
-        var allFound = new List<Dictionary<string, object?>>();
+        var allFound = new List<DetectedThreat>();
 
         foreach (var item in _cheatDb.RegistryKeys)
         {
@@ -141,32 +145,7 @@ public class RegistryChecker
             }
         }
 
-        foreach (var item in allFound)
-        {
-            if (_osName == "Windows")
-            {
-                FoundCheats.Add(new Dictionary<string, object?>
-                {
-                    ["type"] = "registry",
-                    ["hive"] = item["hive"],
-                    ["path"] = item["path"],
-                    ["name"] = item["name"],
-                    ["value"] = item["value"],
-                    ["match"] = item["match"],
-                    ["risk"] = "high"
-                });
-            }
-            else
-            {
-                FoundCheats.Add(new Dictionary<string, object?>
-                {
-                    ["type"] = "autostart",
-                    ["path"] = item["path"],
-                    ["match"] = item["match"],
-                    ["risk"] = "high"
-                });
-            }
-        }
+        FoundCheats.AddRange(allFound);
 
         return allFound.Count;
     }

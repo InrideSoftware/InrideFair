@@ -1,149 +1,107 @@
-﻿# Скрипт для автоматической сборки релизной версии Inride Fair (C# .NET 11)
-# Создаёт EXE-файл и готовит пакет для распространения
+﻿# Сборка и упаковка полной релизной версии Inride Fair.
 
 param(
-    [string]$Version = ""
+  [string]$Version = ""
 )
 
-Write-Host "=" -ForegroundColor Cyan
-Write-Host "  Inride Fair Release Builder (C#)" -ForegroundColor Cyan
-Write-Host "=" -ForegroundColor Cyan
+$ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectPath = Join-Path $Root "InrideFair\InrideFair.csproj"
-$ReleaseDir = Join-Path $Root "release"
+$ProjectDir = Join-Path $Root "InrideFair"
+$ReleaseDir = Join-Path $Root "Release"
 
-# Получение версии из проекта
-if ([string]::IsNullOrEmpty($Version)) {
-    $ProjectXml = [Xml.XmlDocument](Get-Content $ProjectPath -Raw)
-    $Version = $ProjectXml.Project.PropertyGroup.Version
-    if ([string]::IsNullOrEmpty($Version)) {
-        $Version = "1.0.0"
-    }
+if ([string]::IsNullOrWhiteSpace($Version)) {
+  [xml]$projectXml = Get-Content $ProjectPath -Raw
+  $Version = $projectXml.Project.PropertyGroup.Version
+  if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = "1.1.0"
+  }
 }
 
-# Проверка .NET
-Write-Host "`n  Проверка .NET SDK..." -ForegroundColor Yellow
+$Version = $Version.Trim()
+
+Write-Host "=== Inride Fair Release Builder v$Version ===" -ForegroundColor Cyan
+
 $dotnetVersion = dotnet --version 2>$null
-if ($null -eq $dotnetVersion) {
-    Write-Host "  ERROR: .NET SDK не найден!" -ForegroundColor Red
-    exit 1
+if (-not $dotnetVersion) {
+  throw ".NET SDK не найден. Установите .NET 11 SDK или новее."
 }
-Write-Host "  .NET SDK: v$dotnetVersion" -ForegroundColor Green
 
-# Очистка
-Write-Host "`n  Очистка..." -ForegroundColor Yellow
-if (Test-Path "$Root\bin") { Remove-Item -Recurse -Force "$Root\bin" }
-if (Test-Path "$Root\obj") { Remove-Item -Recurse -Force "$Root\obj" }
-if (Test-Path $ReleaseDir) { Remove-Item -Recurse -Force $ReleaseDir }
-Write-Host "  Очистка завершена" -ForegroundColor Green
+Write-Host "[1/4] Очистка старых артефактов..." -ForegroundColor Yellow
+foreach ($path in @(
+  (Join-Path $ProjectDir "bin"),
+  (Join-Path $ProjectDir "obj"),
+  $ReleaseDir
+)) {
+  if (Test-Path $path) {
+    Remove-Item -Path $path -Recurse -Force
+  }
+}
+New-Item -ItemType Directory -Path $ReleaseDir | Out-Null
 
-# Сборка
-Write-Host "`n  Сборка Release..." -ForegroundColor Yellow
-dotnet publish "$ProjectPath" `
-    -c Release `
-    -r win-x64 `
-    --self-contained `
-    -p:PublishSingleFile=true `
-    -p:EnableCompressionInSingleFile=true `
-    -p:DebugType=None `
-    -p:DebugSymbols=false `
-    -o "$ReleaseDir\publish"
+Write-Host "[2/4] Публикация self-contained сборки..." -ForegroundColor Yellow
+dotnet publish $ProjectPath `
+  -c Release `
+  -r win-x64 `
+  --self-contained true `
+  -p:PublishSingleFile=true `
+  -p:EnableCompressionInSingleFile=true `
+  -p:IncludeNativeLibrariesForSelfExtract=true `
+  -p:DebugType=None `
+  -p:DebugSymbols=false `
+  -o $ReleaseDir
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ERROR: Ошибка сборки!" -ForegroundColor Red
-    exit 1
+  throw "Ошибка публикации проекта."
 }
 
-# Подготовка релиза
-Write-Host "`n  Подготовка релиза..." -ForegroundColor Yellow
-
-# Копирование config.json
-if (Test-Path "$Root\config.json") {
-    Copy-Item "$Root\config.json" "$ReleaseDir\publish\config.json"
-    Write-Host "  Скопирован: config.json" -ForegroundColor Green
+Write-Host "[3/4] Копирование документации..." -ForegroundColor Yellow
+Copy-Item (Join-Path $ProjectDir "config.json") (Join-Path $ReleaseDir "config.json") -Force
+foreach ($docFile in @("README.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE")) {
+  $source = Join-Path $Root $docFile
+  if (Test-Path $source) {
+    Copy-Item $source (Join-Path $ReleaseDir $docFile) -Force
+  }
 }
 
-# Копирование документации
-foreach ($docFile in @("README.md", "LICENSE")) {
-    if (Test-Path "$Root\$docFile") {
-        Copy-Item "$Root\$docFile" "$ReleaseDir\publish\$docFile"
-        Write-Host "  Скопирован: $docFile" -ForegroundColor Green
-    }
-}
-
-# Создание файла версии
-$VersionContent = @"
+$versionInfo = @"
 Inride Fair v$Version
 Дата сборки: $(Get-Date -Format "dd.MM.yyyy HH:mm:ss")
-.NET: $dotnetVersion
-ОС: Windows x64
+.NET SDK: $dotnetVersion
+Платформа: Windows x64
+Формат: self-contained single-file
 
 © 2026 Inride Software. Все права защищены.
 "@
-$VersionContent | Out-File -FilePath "$ReleaseDir\publish\VERSION.txt" -Encoding UTF8
-Write-Host "  Создан: VERSION.txt" -ForegroundColor Green
+$versionInfo | Set-Content -Path (Join-Path $ReleaseDir "VERSION.txt") -Encoding UTF8
 
-# Создание INSTALL.txt
-$InstallContent = @"
-================================================================================
-  Inride Fair v$Version - Инструкция по установке и запуску
-================================================================================
+$installInfo = @"
+Inride Fair v$Version
+=====================
 
-ТРЕБОВАНИЯ:
-  - Windows 10/11 (64-bit)
-  - .NET: НЕ ТРЕБУЕТСЯ (встроен в EXE)
-  - Права администратора (для полной проверки системы)
+1. Запустите InrideFair.exe от имени администратора.
+2. Убедитесь, что рядом лежит config.json.
+3. После завершения проверки используйте HTML/JSON отчет.
 
-ЗАПУСК:
-  1. Скопируйте все файлы из этой папки в удобное место
-  2. Запустите InrideFair.exe от имени администратора
-  3. Нажмите "Начать проверку"
-
-ФАЙЛЫ:
-  - InrideFair.exe    - Основной исполняемый файл (~62 MB)
-  - config.json       - Файл конфигурации
-  - README.md         - Полная документация
-  - VERSION.txt       - Информация о версии
-
-ПРИМЕЧАНИЯ:
-  - При первом запуске может потребоваться подтверждение от Windows Defender
-  - Некоторые антивирусы могут ложно срабатывать на упакованные приложения
-  - Для корректной работы не удаляйте config.json
-
-ПОДДЕРЖКА:
-  © 2026 Inride Software
-  Email: freno@inride.software
-================================================================================
+В комплекте:
+- InrideFair.exe
+- config.json
+- README.md
+- CHANGELOG.md
+- CONTRIBUTING.md
+- LICENSE
+- VERSION.txt
 "@
-$InstallContent | Out-File -FilePath "$ReleaseDir\publish\INSTALL.txt" -Encoding UTF8
-Write-Host "  Создан: INSTALL.txt" -ForegroundColor Green
+$installInfo | Set-Content -Path (Join-Path $ReleaseDir "INSTALL.txt") -Encoding UTF8
 
-# Вывод размера
-$ExePath = "$ReleaseDir\publish\InrideFair.exe"
-if (Test-Path $ExePath) {
-    $ExeSize = (Get-Item $ExePath).Length / 1MB
-    Write-Host "`n  Размер EXE: $([math]::Round($ExeSize, 2)) MB" -ForegroundColor Cyan
+Write-Host "[4/4] Создание ZIP-архива..." -ForegroundColor Yellow
+$archiveName = "InrideFair_v${Version}_Windows_x64.zip"
+$archivePath = Join-Path $ReleaseDir $archiveName
+if (Test-Path $archivePath) {
+  Remove-Item $archivePath -Force
 }
+Compress-Archive -Path (Join-Path $ReleaseDir "*") -DestinationPath $archivePath -Force
 
-# Создание архива
-Write-Host "`n  Создание архива..." -ForegroundColor Yellow
-$ArchiveName = "InrideFair_v$($Version.Replace('.', '_'))_Windows"
-$ArchivePath = "$ReleaseDir\$ArchiveName.zip"
-
-if (Test-Path "C:\Program Files\7-Zip\7z.exe") {
-    & "C:\Program Files\7-Zip\7z.exe" a -tzip "$ArchivePath" "$ReleaseDir\publish\*"
-    Write-Host "  Создан архив: $ArchiveName.zip" -ForegroundColor Green
-} else {
-    # Используем встроенный Compress-Archive
-    Compress-Archive -Path "$ReleaseDir\publish\*" -DestinationPath "$ArchivePath" -Force
-    Write-Host "  Создан архив: $ArchiveName.zip" -ForegroundColor Green
-}
-
-# Итог
-Write-Host "`n" "=" -ForegroundColor Cyan
-Write-Host "  Готово!" -ForegroundColor Green
-Write-Host "=" -ForegroundColor Cyan
-Write-Host "`n  Релиз находится в: $ReleaseDir" -ForegroundColor Cyan
-Write-Host "  Архив: $ArchivePath" -ForegroundColor Cyan
-Write-Host "`n  Сборка завершена успешно!" -ForegroundColor Green
+Write-Host "Готово: $ReleaseDir" -ForegroundColor Green
+Write-Host "Архив: $archivePath" -ForegroundColor Green

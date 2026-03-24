@@ -2,10 +2,10 @@ name: Build and Release
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 env:
   DOTNET_VERSION: '11.0.x'
@@ -33,7 +33,6 @@ jobs:
       
     - name: Run tests (if any)
       run: dotnet test InrideFair.sln -c ${{ env.CONFIGURATION }} --no-build --verbosity normal
-      continue-on-error: true
       
     - name: Publish
       run: |
@@ -49,8 +48,9 @@ jobs:
           
     - name: Copy additional files
       run: |
-        Copy-Item "config.json" "publish/config.json" -ErrorAction SilentlyContinue
+        Copy-Item "InrideFair/config.json" "publish/config.json" -ErrorAction SilentlyContinue
         Copy-Item "README.md" "publish/README.md" -ErrorAction SilentlyContinue
+        Copy-Item "CHANGELOG.md" "publish/CHANGELOG.md" -ErrorAction SilentlyContinue
         Copy-Item "LICENSE" "publish/LICENSE" -ErrorAction SilentlyContinue
         
     - name: Upload build artifacts
@@ -79,34 +79,42 @@ jobs:
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
     - name: Create ZIP archive
+      id: create_zip
       shell: pwsh
       run: |
         $archiveName = "InrideFair_v${{ steps.get_version.outputs.VERSION }}_Windows.zip"
         Compress-Archive -Path "./publish/*" -DestinationPath "$archiveName" -Force
-        echo "ARCHIVE_NAME=$archiveName" >> $env:GITHUB_ENV
+        "archive_name=$archiveName" >> $env:GITHUB_OUTPUT
         
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         name: Inride Fair v${{ steps.get_version.outputs.VERSION }}
         body: |
-          ## Изменения
-          
-          Автоматическая сборка версии v${{ steps.get_version.outputs.VERSION }}
-          
-          ## Системные требования
-          
-          - Windows 10/11 (64-bit)
-          - .NET: НЕ ТРЕБУЕТСЯ (встроен в EXE)
-          - Права администратора (рекомендуется)
-          
-          ## Установка
-          
-          1. Скачайте архив
-          2. Распакуйте в любую папку
-          3. Запустите InrideFair.exe
+          ## Release Notes
+
+          Version: v${{ steps.get_version.outputs.VERSION }}
+
+          Key updates in 1.1.0:
+          - refreshed WPF interface and branding
+          - typed threat pipeline and cleaner scanner internals
+          - automated tests in CI
+          - updated packaging for Release and portable Distribution builds
+
+          ## Requirements
+
+          - Windows 10/11 x64
+          - .NET runtime is not required for packaged releases
+          - Administrator rights are recommended for full scan coverage
+
+          ## Installation
+
+          1. Download the ZIP artifact
+          2. Extract it to any folder
+          3. Run InrideFair.exe
+          4. Keep config.json next to the executable
         draft: false
         prerelease: false
-        files: ${{ env.ARCHIVE_NAME }}
+        files: ${{ steps.create_zip.outputs.archive_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -6,7 +6,11 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
 using InrideFair.Config;
+using InrideFair.Models;
 using InrideFair.Scanner;
 using InrideFair.Services;
 using InrideFair.Utils;
@@ -20,15 +24,19 @@ public partial class MainWindow : System.Windows.Window, IDisposable
 {
     private readonly ILoggingService _logger;
     private bool _isScanning;
-    private Dictionary<string, object?> _currentResult = new();
+    private ScanResult _currentResult = new();
     private ScannerService? _scannerService;
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _disposed;
+    private readonly DispatcherTimer _mainScrollTimer;
+    private double _mainScrollTargetOffset;
 
     public MainWindow(ILoggingService logger, ScannerService scannerService)
     {
         _logger = logger;
         _scannerService = scannerService;
+        _mainScrollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(14) };
+        _mainScrollTimer.Tick += MainScrollTimer_Tick;
 
         InitializeComponent();
         InitializeWindow();
@@ -49,14 +57,8 @@ public partial class MainWindow : System.Windows.Window, IDisposable
         // Проверка прав администратора
         CheckAdminRights();
 
-        _currentResult = new Dictionary<string, object?>
-        {
-            ["processes"] = new List<Dictionary<string, object?>>(),
-            ["files"] = new List<Dictionary<string, object?>>(),
-            ["archives"] = new List<Dictionary<string, object?>>(),
-            ["browser"] = new List<Dictionary<string, object?>>(),
-            ["registry"] = new List<Dictionary<string, object?>>()
-        };
+        _currentResult = new ScanResult();
+        _mainScrollTargetOffset = 0;
 
         _logger.Debug("MainWindow инициализирован");
     }
@@ -106,6 +108,116 @@ public partial class MainWindow : System.Windows.Window, IDisposable
         _logger.Debug(message);
     }
 
+    private void Window_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        var source = e.OriginalSource as DependencyObject;
+        if (source == null)
+        {
+            return;
+        }
+
+        var nestedScrollViewer = FindAncestor<ScrollViewer>(source);
+        if (nestedScrollViewer != null && nestedScrollViewer != MainContentScroll && nestedScrollViewer.ScrollableHeight > 0)
+        {
+            // Не перехватываем колесо, если курсор над внутренней прокруткой.
+            return;
+        }
+
+        if (MainContentScroll.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        _mainScrollTargetOffset -= e.Delta * 0.65;
+        _mainScrollTargetOffset = Math.Clamp(_mainScrollTargetOffset, 0, MainContentScroll.ScrollableHeight);
+
+        if (!_mainScrollTimer.IsEnabled)
+        {
+            _mainScrollTimer.Start();
+        }
+
+        e.Handled = true;
+    }
+
+    private void MainScrollTimer_Tick(object? sender, EventArgs e)
+    {
+        var diff = _mainScrollTargetOffset - MainContentScroll.VerticalOffset;
+        if (Math.Abs(diff) < 0.6)
+        {
+            MainContentScroll.ScrollToVerticalOffset(_mainScrollTargetOffset);
+            _mainScrollTimer.Stop();
+            return;
+        }
+
+        MainContentScroll.ScrollToVerticalOffset(MainContentScroll.VerticalOffset + (diff * 0.22));
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? child) where T : DependencyObject
+    {
+        var current = child;
+        while (current != null)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+
+            current = current is Visual
+                ? VisualTreeHelper.GetParent(current)
+                : LogicalTreeHelper.GetParent(current);
+        }
+
+        return null;
+    }
+
+    private void SetProgress(double value, string label)
+    {
+        var clamped = Math.Clamp(value, 0, 100);
+        ProgressBar.Value = clamped;
+        SidebarProgressBar.Value = clamped;
+
+        ProgressLabel.Text = label;
+        SidebarProgressLabel.Text = $"{label} ({clamped:0}%)";
+    }
+
+    private void UpdateProgressFromLogMessage(string message)
+    {
+        if (message.StartsWith("Проверка процессов", StringComparison.OrdinalIgnoreCase))
+        {
+            SetProgress(18, "Проверка процессов...");
+            return;
+        }
+
+        if (message.StartsWith("Проверка файлов", StringComparison.OrdinalIgnoreCase))
+        {
+            SetProgress(36, "Проверка файлов...");
+            return;
+        }
+
+        if (message.StartsWith("Проверка архивов", StringComparison.OrdinalIgnoreCase))
+        {
+            SetProgress(54, "Проверка архивов...");
+            return;
+        }
+
+        if (message.StartsWith("Проверка браузеров", StringComparison.OrdinalIgnoreCase))
+        {
+            SetProgress(72, "Проверка браузеров...");
+            return;
+        }
+
+        if (message.StartsWith("Проверка реестра", StringComparison.OrdinalIgnoreCase))
+        {
+            SetProgress(90, "Проверка реестра...");
+            return;
+        }
+
+        if (message.StartsWith("ИТОГО", StringComparison.OrdinalIgnoreCase))
+        {
+            SetProgress(100, "Завершение анализа...");
+        }
+    }
+
     private void UpdateStatusBadge(string text, string colorHex)
     {
         if (StatusBadge.Child is TextBlock badgeText)
@@ -118,11 +230,11 @@ public partial class MainWindow : System.Windows.Window, IDisposable
 
     private (int total, int highRisk, int mediumRisk, int lowRisk) UpdateDetails()
     {
-        var processes = _currentResult.GetValueOrDefault("processes") as List<Dictionary<string, object?>> ?? [];
-        var files = _currentResult.GetValueOrDefault("files") as List<Dictionary<string, object?>> ?? [];
-        var archives = _currentResult.GetValueOrDefault("archives") as List<Dictionary<string, object?>> ?? [];
-        var browser = _currentResult.GetValueOrDefault("browser") as List<Dictionary<string, object?>> ?? [];
-        var registry = _currentResult.GetValueOrDefault("registry") as List<Dictionary<string, object?>> ?? [];
+        var processes = _currentResult.Processes;
+        var files = _currentResult.Files;
+        var archives = _currentResult.Archives;
+        var browser = _currentResult.Browser;
+        var registry = _currentResult.Registry;
 
         var total = processes.Count + files.Count + archives.Count + browser.Count + registry.Count;
         var highRisk = processes.Count + files.Count;
@@ -172,8 +284,7 @@ public partial class MainWindow : System.Windows.Window, IDisposable
         DetailsText.Text = "  • Запуск проверки...\n";
 
         // Сброс прогресса и карточек
-        ProgressBar.Value = 0;
-        ProgressLabel.Text = "Запуск сканера...";
+        SetProgress(4, "Запуск сканера...");
         StatusLabel.Text = "● Проверка запущена";
         StatusLabel.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(59, 130, 246));
         StatusIndicator.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(59, 130, 246));
@@ -199,7 +310,11 @@ public partial class MainWindow : System.Windows.Window, IDisposable
             _scannerService?.Dispose();
             _scannerService = ServiceContainer.GetRequiredService<ScannerService>();
 
-            var progress = new Progress<string>(message => AppendLog(message));
+            var progress = new Progress<string>(message =>
+            {
+                AppendLog(message);
+                UpdateProgressFromLogMessage(message);
+            });
             var results = await _scannerService.RunScanAsync(progress);
 
             if (results.Error != null)
@@ -215,14 +330,7 @@ public partial class MainWindow : System.Windows.Window, IDisposable
             }
 
             // Сохранение результатов
-            _currentResult = new Dictionary<string, object?>
-            {
-                ["processes"] = results.Processes,
-                ["files"] = results.Files,
-                ["archives"] = results.Archives,
-                ["browser"] = results.Browser,
-                ["registry"] = results.Registry
-            };
+            _currentResult = results;
 
             ScanComplete(results);
         }
@@ -230,6 +338,7 @@ public partial class MainWindow : System.Windows.Window, IDisposable
         {
             _logger.Error("Ошибка при сканировании", ex);
             AppendLog($"❌ Ошибка: {ex.Message}");
+            SetProgress(100, "Сканирование завершилось с ошибкой");
             ScanButton.IsEnabled = true;
             _isScanning = false;
         }
@@ -246,8 +355,7 @@ public partial class MainWindow : System.Windows.Window, IDisposable
         ScanButton.IsEnabled = true;
         OpenReportButton.IsEnabled = true;
         OpenFolderButton.IsEnabled = true;
-        ProgressBar.Value = 100;
-        ProgressLabel.Text = "Проверка завершена";
+        SetProgress(100, "Проверка завершена");
 
         var (total, highRisk, mediumRisk, lowRisk) = UpdateDetails();
 
@@ -285,11 +393,11 @@ public partial class MainWindow : System.Windows.Window, IDisposable
     {
         try
         {
-            var processes = _currentResult.GetValueOrDefault("processes") as List<Dictionary<string, object?>> ?? [];
-            var files = _currentResult.GetValueOrDefault("files") as List<Dictionary<string, object?>> ?? [];
-            var archives = _currentResult.GetValueOrDefault("archives") as List<Dictionary<string, object?>> ?? [];
-            var browser = _currentResult.GetValueOrDefault("browser") as List<Dictionary<string, object?>> ?? [];
-            var registry = _currentResult.GetValueOrDefault("registry") as List<Dictionary<string, object?>> ?? [];
+            var processes = _currentResult.Processes;
+            var files = _currentResult.Files;
+            var archives = _currentResult.Archives;
+            var browser = _currentResult.Browser;
+            var registry = _currentResult.Registry;
 
             var total = processes.Count + files.Count + archives.Count + browser.Count + registry.Count;
             var highRisk = processes.Count + files.Count;
@@ -336,17 +444,17 @@ public partial class MainWindow : System.Windows.Window, IDisposable
         }
     }
 
-    private static ThreatData ToThreatData(Dictionary<string, object?> dict)
+    private static ThreatData ToThreatData(DetectedThreat threat)
     {
         return new ThreatData
         {
-            Type = dict.GetValueOrDefault("type")?.ToString() ?? "",
-            Path = dict.GetValueOrDefault("path")?.ToString() ?? "",
-            Match = dict.GetValueOrDefault("match")?.ToString() ?? "",
-            Hash = dict.GetValueOrDefault("hash")?.ToString() ?? "",
-            Risk = dict.GetValueOrDefault("risk")?.ToString() ?? "medium",
-            AnalysisScore = dict.GetValueOrDefault("analysis_score") as int?,
-            Indicators = dict.GetValueOrDefault("indicators") as List<string> ?? []
+            Type = threat.Type,
+            Path = threat.Path,
+            Match = threat.Match,
+            Hash = threat.Hash,
+            Risk = threat.Risk,
+            AnalysisScore = threat.AnalysisScore,
+            Indicators = threat.Indicators
         };
     }
 
@@ -474,7 +582,7 @@ public partial class MainWindow : System.Windows.Window, IDisposable
     {
         try
         {
-            var files = _currentResult.GetValueOrDefault("files") as List<Dictionary<string, object?>> ?? [];
+            var files = _currentResult.Files;
 
             if (files.Count == 0)
             {
@@ -485,7 +593,8 @@ public partial class MainWindow : System.Windows.Window, IDisposable
             var opened = new HashSet<string>();
             foreach (var threat in files)
             {
-                if (threat.TryGetValue("path", out var pathObj) && pathObj is string filepath && !string.IsNullOrEmpty(filepath))
+                var filepath = threat.Path;
+                if (!string.IsNullOrEmpty(filepath))
                 {
                     if (!opened.Contains(filepath))
                     {
