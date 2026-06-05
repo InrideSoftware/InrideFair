@@ -47,23 +47,27 @@ public class RegistryChecker
 
                             foreach (var cheatSig in _cheatDb.CheatProcesses)
                             {
-                                if (valueStr.Contains(cheatSig.ToLower()) || nameLower.Contains(cheatSig.ToLower()))
+                                if (!Utils.SignatureMatcher.MatchesText(valueStr, cheatSig) &&
+                                    !Utils.SignatureMatcher.MatchesText(nameLower, cheatSig))
                                 {
-                                    if (!IsLegitimateGame(valueStr))
-                                    {
-                                        found.Add(new DetectedThreat
-                                        {
-                                            Type = "registry",
-                                            Hive = keyInfo.Hive == RegistryHive.LocalMachine ? "HKLM" : "HKCU",
-                                            Path = keyInfo.Path,
-                                            ValueName = valueName,
-                                            ValueData = value?.ToString() ?? "",
-                                            Match = cheatSig,
-                                            Risk = "high"
-                                        });
-                                    }
-                                    break;
+                                    continue;
                                 }
+
+                                if (IsLegitimateGame(valueStr))
+                                    continue;
+
+                                found.Add(new DetectedThreat
+                                {
+                                    Type = "registry",
+                                    Hive = keyInfo.Hive == RegistryHive.LocalMachine ? "HKLM" : "HKCU",
+                                    Path = keyInfo.Path,
+                                    KeyPath = keyInfo.Path,
+                                    ValueName = valueName,
+                                    ValueData = value?.ToString() ?? "",
+                                    Match = cheatSig,
+                                    Risk = "high"
+                                });
+                                break;
                             }
                         }
                     }
@@ -91,9 +95,10 @@ public class RegistryChecker
                                 var content = File.ReadAllText(item.FullName).ToLower();
                                 foreach (var cheatSig in _cheatDb.CheatProcesses)
                                 {
-                                    if (content.Contains(cheatSig.ToLower()))
-                                    {
-                                        found.Add(new DetectedThreat
+                                    if (!Utils.SignatureMatcher.MatchesText(content, cheatSig))
+                                        continue;
+
+                                    found.Add(new DetectedThreat
                                         {
                                             Type = "autostart",
                                             Path = item.FullName,
@@ -101,7 +106,6 @@ public class RegistryChecker
                                             Risk = "high"
                                         });
                                         break;
-                                    }
                                 }
                             }
                             catch
@@ -129,20 +133,14 @@ public class RegistryChecker
     /// <summary>
     /// Проверить систему.
     /// </summary>
-    public int CheckSystem()
+    public int CheckSystem(CancellationToken cancellationToken = default)
     {
         var allFound = new List<DetectedThreat>();
 
         foreach (var item in _cheatDb.RegistryKeys)
         {
-            if (_osName == "Windows")
-            {
-                allFound.AddRange(CheckRegistryKey(item));
-            }
-            else
-            {
-                allFound.AddRange(CheckRegistryKey(item));
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            allFound.AddRange(CheckRegistryKey(item));
         }
 
         FoundCheats.AddRange(allFound);

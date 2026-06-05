@@ -10,12 +10,26 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using InrideFair.Config;
+using InrideFair.Database;
 using InrideFair.Models;
 using InrideFair.Scanner;
 using InrideFair.Services;
 using InrideFair.Utils;
 
 namespace InrideFair.UI;
+
+/// <summary>
+/// Элемент списка найденных угроз в UI.
+/// </summary>
+public sealed class ThreatListItem
+{
+    public string Category { get; init; } = "";
+    public string Risk { get; init; } = "";
+    public string RiskKey { get; init; } = "";
+    public string Match { get; init; } = "";
+    public string Path { get; init; } = "";
+    public DetectedThreat Source { get; init; } = new();
+}
 
 /// <summary>
 /// Логика взаимодействия для MainWindow.xaml
@@ -30,11 +44,12 @@ public partial class MainWindow : System.Windows.Window, IDisposable
     private bool _disposed;
     private readonly DispatcherTimer _mainScrollTimer;
     private double _mainScrollTargetOffset;
+    private readonly List<ThreatListItem> _allFindingItems = [];
+    private string _lastHtmlReportPath = "";
 
-    public MainWindow(ILoggingService logger, ScannerService scannerService)
+    public MainWindow(ILoggingService logger)
     {
         _logger = logger;
-        _scannerService = scannerService;
         _mainScrollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(14) };
         _mainScrollTimer.Tick += MainScrollTimer_Tick;
 
@@ -56,9 +71,11 @@ public partial class MainWindow : System.Windows.Window, IDisposable
 
         // Проверка прав администратора
         CheckAdminRights();
+        LoadSettingsUi();
 
         _currentResult = new ScanResult();
         _mainScrollTargetOffset = 0;
+        AdminButton.Visibility = ProcessUtils.IsAdmin() ? Visibility.Collapsed : Visibility.Visible;
 
         _logger.Debug("MainWindow инициализирован");
     }
@@ -230,36 +247,114 @@ public partial class MainWindow : System.Windows.Window, IDisposable
 
     private (int total, int highRisk, int mediumRisk, int lowRisk) UpdateDetails()
     {
-        var processes = _currentResult.Processes;
-        var files = _currentResult.Files;
-        var archives = _currentResult.Archives;
-        var browser = _currentResult.Browser;
-        var registry = _currentResult.Registry;
+        var (processes, files, archives, browser, registry) = ThreatMapper.CountByCategory(_currentResult);
+        var (total, highRisk, mediumRisk, lowRisk) = ThreatMapper.CountByRisk(_currentResult.AllThreats());
 
-        var total = processes.Count + files.Count + archives.Count + browser.Count + registry.Count;
-        var highRisk = processes.Count + files.Count;
-        var mediumRisk = browser.Count + registry.Count + archives.Count;
-        var lowRisk = 0;
-
-        DetailsText.Text = $@"  • Процессы: {processes.Count}
-  • Файлы: {files.Count}
-  • Архивы: {archives.Count}
-  • Браузеры: {browser.Count}
-  • Реестр: {registry.Count}
-
-  🔴 Высокий риск: {highRisk}
-  🟡 Средний риск: {mediumRisk}
-  ─────────────────
-  ВСЕГО: {total} угроз";
-
-        // Обновляем карточки
         TotalCount.Text = total.ToString();
         HighRiskCount.Text = highRisk.ToString();
         MediumRiskCount.Text = mediumRisk.ToString();
         LowRiskCount.Text = lowRisk.ToString();
 
+        PopulateFindingsList();
+
         return (total, highRisk, mediumRisk, lowRisk);
     }
+
+    private void PopulateFindingsList()
+    {
+        _allFindingItems.Clear();
+        _allFindingItems.AddRange(_currentResult.AllThreats().Select(threat =>
+        {
+            var data = ThreatMapper.ToThreatData(threat);
+            return new ThreatListItem
+            {
+                Category = GetCategoryLabel(threat.Type),
+                Risk = FormatRiskLabel(threat.Risk),
+                RiskKey = threat.Risk.ToLowerInvariant(),
+                Match = threat.Match,
+                Path = data.Path,
+                Source = threat
+            };
+        }));
+
+        ApplyThreatFilter();
+    }
+
+    private void ApplyThreatFilter()
+    {
+        var filter = (ThreatFilterCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Все";
+        IEnumerable<ThreatListItem> filtered = filter switch
+        {
+            "Высокий риск" => _allFindingItems.Where(i => i.RiskKey == "high"),
+            "Процессы" => _allFindingItems.Where(i => i.Category == "Процесс"),
+            "Файлы" => _allFindingItems.Where(i => i.Category == "Файл" || i.Category == "Папка" || i.Category == "Архив"),
+            "Браузер" => _allFindingItems.Where(i => i.Category == "Браузер" || i.Category == "Prefetch"),
+            "Реестр" => _allFindingItems.Where(i => i.Category == "Реестр"),
+            _ => _allFindingItems
+        };
+
+        FindingsListView.ItemsSource = filtered.ToList();
+    }
+
+    private void ThreatFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyThreatFilter();
+
+    private void FindingsListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (FindingsListView.SelectedItem is not ThreatListItem item)
+            return;
+
+        OpenThreatTarget(item.Source);
+    }
+
+    private void OpenThreatTarget(DetectedThreat threat)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(threat.Url))
+            {
+                Process.Start(new ProcessStartInfo { FileName = threat.Url, UseShellExecute = true });
+                return;
+            }
+
+            var path = ThreatMapper.ToThreatData(threat).Path;
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
+            if (File.Exists(path))
+            {
+                ProcessUtils.OpenFolder(path);
+                return;
+            }
+
+            if (Directory.Exists(path))
+            {
+                Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+            }
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"❌ Не удалось открыть: {ex.Message}");
+        }
+    }
+
+    private static string GetCategoryLabel(string type) => type switch
+    {
+        "process" => "Процесс",
+        "file" => "Файл",
+        "archive" => "Архив",
+        "directory_heuristic" => "Папка",
+        "browser_search" or "browser_download" or "browser_cache" or "browser_log" or "browser_session" or "dns_cache" => "Браузер",
+        "prefetch" => "Prefetch",
+        "registry" or "autostart" => "Реестр",
+        _ => type
+    };
+
+    private static string FormatRiskLabel(string risk) => risk.ToLowerInvariant() switch
+    {
+        "high" => "Высокий",
+        "low" => "Низкий",
+        _ => "Средний"
+    };
 
     private async void ScanButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
@@ -273,15 +368,13 @@ public partial class MainWindow : System.Windows.Window, IDisposable
 
         _isScanning = true;
         ScanButton.IsEnabled = false;
+        CancelButton.IsEnabled = true;
         OpenReportButton.IsEnabled = false;
         OpenFolderButton.IsEnabled = false;
 
-        // Очистка лога
         LogText.Clear();
         AppendLog("Запуск модуля проверки...");
-
-        // Очистка деталей
-        DetailsText.Text = "  • Запуск проверки...\n";
+        FindingsListView.ItemsSource = null;
 
         // Сброс прогресса и карточек
         SetProgress(4, "Запуск сканера...");
@@ -315,7 +408,7 @@ public partial class MainWindow : System.Windows.Window, IDisposable
                 AppendLog(message);
                 UpdateProgressFromLogMessage(message);
             });
-            var results = await _scannerService.RunScanAsync(progress);
+            var results = await _scannerService.RunScanAsync(progress, _cancellationTokenSource.Token);
 
             if (results.Error != null)
             {
@@ -323,36 +416,42 @@ public partial class MainWindow : System.Windows.Window, IDisposable
                 AppendLog($"❌ Ошибка в сканере: {results.Error}");
             }
 
-            // Сохранение логов
-            foreach (var logLine in results.Log)
-            {
-                AppendLog(logLine);
-            }
-
-            // Сохранение результатов
             _currentResult = results;
-
             ScanComplete(results);
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("⏹ Сканирование остановлено");
+            SetProgress(100, "Сканирование остановлено");
         }
         catch (Exception ex)
         {
             _logger.Error("Ошибка при сканировании", ex);
             AppendLog($"❌ Ошибка: {ex.Message}");
             SetProgress(100, "Сканирование завершилось с ошибкой");
-            ScanButton.IsEnabled = true;
-            _isScanning = false;
         }
         finally
         {
+            _isScanning = false;
+            ScanButton.IsEnabled = true;
+            CancelButton.IsEnabled = false;
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
         }
     }
 
+    private void CancelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isScanning)
+            return;
+
+        _cancellationTokenSource?.Cancel();
+        CancelButton.IsEnabled = false;
+        AppendLog("⏹ Запрос на остановку сканирования...");
+    }
+
     private void ScanComplete(ScanResult results)
     {
-        _isScanning = false;
-        ScanButton.IsEnabled = true;
         OpenReportButton.IsEnabled = true;
         OpenFolderButton.IsEnabled = true;
         SetProgress(100, "Проверка завершена");
@@ -398,12 +497,8 @@ public partial class MainWindow : System.Windows.Window, IDisposable
             var archives = _currentResult.Archives;
             var browser = _currentResult.Browser;
             var registry = _currentResult.Registry;
+            var (total, highRisk, mediumRisk, lowRisk) = ThreatMapper.CountByRisk(_currentResult.AllThreats());
 
-            var total = processes.Count + files.Count + archives.Count + browser.Count + registry.Count;
-            var highRisk = processes.Count + files.Count;
-            var mediumRisk = browser.Count + registry.Count + archives.Count;
-
-            // Создаём данные отчёта в новом формате
             var reportData = new ScanResultData
             {
                 Version = AppVersion.Full,
@@ -414,28 +509,46 @@ public partial class MainWindow : System.Windows.Window, IDisposable
                     TotalThreats = total,
                     HighRisk = highRisk,
                     MediumRisk = mediumRisk,
-                    LowRisk = 0
+                    LowRisk = lowRisk
                 },
-                Processes = processes.Select(ToThreatData).ToList(),
-                Files = files.Select(ToThreatData).ToList(),
-                Archives = archives.Select(ToThreatData).ToList(),
-                Browser = browser.Select(ToThreatData).ToList(),
-                Registry = registry.Select(ToThreatData).ToList()
+                Processes = processes.Select(ThreatMapper.ToThreatData).ToList(),
+                Files = files.Select(ThreatMapper.ToThreatData).ToList(),
+                Archives = archives.Select(ThreatMapper.ToThreatData).ToList(),
+                Browser = browser.Select(ThreatMapper.ToThreatData).ToList(),
+                Registry = registry.Select(ThreatMapper.ToThreatData).ToList()
             };
 
-            // Получаем сервис отчётов
             var reportService = ServiceContainer.GetRequiredService<IReportService>();
-            
-            // Сохраняем JSON отчёт
-            var jsonReportPath = Path.Combine(AppContext.BaseDirectory, "inridefair_report.json");
-            reportService.GenerateJsonReport(reportData, jsonReportPath);
+            var baseDirectory = AppContext.BaseDirectory;
+            var scanTime = DateTime.Now;
 
-            // Сохраняем HTML отчёт
-            var htmlReportPath = Path.Combine(AppContext.BaseDirectory, "inridefair_report.html");
-            await reportService.GenerateHtmlReportAsync(reportData, htmlReportPath);
+            var timestampedJson = ReportPaths.GetTimestampedJsonPath(baseDirectory, scanTime);
+            var timestampedHtml = ReportPaths.GetTimestampedHtmlPath(baseDirectory, scanTime);
+            var latestJson = Path.Combine(baseDirectory, ReportPaths.LatestJsonName);
+            var latestHtml = Path.Combine(baseDirectory, ReportPaths.LatestHtmlName);
 
-            AppendLog($"📄 Отчёты сохранены");
-            _logger.Info($"Отчёты сохранены: {jsonReportPath}, {htmlReportPath}");
+            var previousReport = ReportPaths.FindPreviousReportPath(baseDirectory, timestampedJson);
+            var diff = ScanDiffService.CompareReports(previousReport, reportData);
+
+            reportService.GenerateJsonReport(reportData, timestampedJson);
+            reportService.GenerateJsonReport(reportData, latestJson);
+            await reportService.GenerateHtmlReportAsync(reportData, timestampedHtml);
+            await reportService.GenerateHtmlReportAsync(reportData, latestHtml);
+
+            _lastHtmlReportPath = latestHtml;
+
+            AppendLog($"📄 Отчёты: {Path.GetFileName(timestampedJson)}, {Path.GetFileName(timestampedHtml)}");
+            if (diff.AddedCount > 0 || diff.RemovedCount > 0)
+            {
+                ScanDiffTextBlock.Text = $"Изменения vs прошлый отчёт: +{diff.AddedCount} / -{diff.RemovedCount}";
+                AppendLog($"📊 Новых угроз: {diff.AddedCount}, исчезло: {diff.RemovedCount}");
+            }
+            else
+            {
+                ScanDiffTextBlock.Text = "Изменений относительно прошлого отчёта не обнаружено.";
+            }
+
+            _logger.Info($"Отчёты сохранены: {timestampedJson}, {timestampedHtml}");
         }
         catch (Exception ex)
         {
@@ -444,25 +557,13 @@ public partial class MainWindow : System.Windows.Window, IDisposable
         }
     }
 
-    private static ThreatData ToThreatData(DetectedThreat threat)
-    {
-        return new ThreatData
-        {
-            Type = threat.Type,
-            Path = threat.Path,
-            Match = threat.Match,
-            Hash = threat.Hash,
-            Risk = threat.Risk,
-            AnalysisScore = threat.AnalysisScore,
-            Indicators = threat.Indicators
-        };
-    }
-
     private void OpenReportButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
         try
         {
-            var reportPath = Path.Combine(AppContext.BaseDirectory, "inridefair_report.html");
+            var reportPath = !string.IsNullOrEmpty(_lastHtmlReportPath) && File.Exists(_lastHtmlReportPath)
+                ? _lastHtmlReportPath
+                : Path.Combine(AppContext.BaseDirectory, ReportPaths.LatestHtmlName);
             if (File.Exists(reportPath))
             {
                 Process.Start(new ProcessStartInfo
@@ -524,13 +625,14 @@ public partial class MainWindow : System.Windows.Window, IDisposable
 
         // Сброс всех кнопок
         HomeButton.Tag = null;
+        SettingsButton.Tag = null;
         AboutButton.Tag = null;
         QnAButton.Tag = null;
         DeveloperButton.Tag = null;
         GitHubButton.Tag = null;
 
-        // Переключение видов
         HomeView.Visibility = System.Windows.Visibility.Collapsed;
+        SettingsView.Visibility = System.Windows.Visibility.Collapsed;
         AboutView.Visibility = System.Windows.Visibility.Collapsed;
         QnAView.Visibility = System.Windows.Visibility.Collapsed;
         DeveloperView.Visibility = System.Windows.Visibility.Collapsed;
@@ -540,6 +642,11 @@ public partial class MainWindow : System.Windows.Window, IDisposable
         {
             case "HomeButton":
                 HomeView.Visibility = System.Windows.Visibility.Visible;
+                button.Tag = "True";
+                break;
+            case "SettingsButton":
+                SettingsView.Visibility = System.Windows.Visibility.Visible;
+                LoadSettingsUi();
                 button.Tag = "True";
                 break;
             case "AboutButton":
@@ -558,6 +665,90 @@ public partial class MainWindow : System.Windows.Window, IDisposable
                 GitHubView.Visibility = System.Windows.Visibility.Visible;
                 button.Tag = "True";
                 break;
+        }
+    }
+
+    private void LoadSettingsUi()
+    {
+        var config = ConfigValidator.ValidateAndLoad();
+        ExclusionsTextBox.Text = string.Join(Environment.NewLine, config.CustomExclusions);
+        CustomSignaturesTextBox.Text = string.Join(Environment.NewLine, config.CustomSignatures);
+        DeepScanDnsCheckBox.IsChecked = config.DeepScanDns;
+        DeepScanPrefetchCheckBox.IsChecked = config.DeepScanPrefetch;
+    }
+
+    private void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var config = new AppConfig
+            {
+                CustomExclusions = SplitLines(ExclusionsTextBox.Text),
+                CustomSignatures = SplitLines(CustomSignaturesTextBox.Text),
+                DeepScanDns = DeepScanDnsCheckBox.IsChecked == true,
+                DeepScanPrefetch = DeepScanPrefetchCheckBox.IsChecked != false
+            };
+
+            ConfigValidator.Save(config);
+            ServiceContainer.GetRequiredService<CheatDatabase>().ReloadSettings(config);
+            AppendLog("✅ Настройки сохранены");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"❌ Ошибка сохранения настроек: {ex.Message}");
+        }
+    }
+
+    private void AddExclusionFromSelectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (FindingsListView.SelectedItem is not ThreatListItem item)
+        {
+            AppendLog("ℹ️  Выберите угрозу в списке");
+            return;
+        }
+
+        var path = item.Source.Path;
+        if (string.IsNullOrWhiteSpace(path))
+            path = item.Path;
+
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        var directory = File.Exists(path) ? Path.GetDirectoryName(path) : path;
+        if (string.IsNullOrWhiteSpace(directory))
+            return;
+
+        var lines = SplitLines(ExclusionsTextBox.Text).ToList();
+        if (!lines.Any(l => string.Equals(l, directory, StringComparison.OrdinalIgnoreCase)))
+        {
+            lines.Add(directory);
+            ExclusionsTextBox.Text = string.Join(Environment.NewLine, lines);
+            AppendLog($"➕ Добавлено в исключения: {directory}");
+        }
+    }
+
+    private static List<string> SplitLines(string text) =>
+        text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    private void AdminButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
+            if (string.IsNullOrWhiteSpace(exePath))
+                return;
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = exePath,
+                UseShellExecute = true,
+                Verb = "runas"
+            });
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"❌ Не удалось перезапустить от администратора: {ex.Message}");
         }
     }
 

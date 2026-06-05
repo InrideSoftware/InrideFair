@@ -58,6 +58,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "[3/4] Копирование документации..." -ForegroundColor Yellow
 Copy-Item (Join-Path $ProjectDir "config.json") (Join-Path $ReleaseDir "config.json") -Force
+Copy-Item (Join-Path $ProjectDir "signatures.json") (Join-Path $ReleaseDir "signatures.json") -Force
 foreach ($docFile in @("README.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE")) {
   $source = Join-Path $Root $docFile
   if (Test-Path $source) {

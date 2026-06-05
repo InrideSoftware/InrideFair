@@ -15,13 +15,15 @@ namespace InrideFair.Checkers;
 public partial class BrowserChecker
 {
     private readonly CheatDatabase _cheatDb;
+    private readonly ILoggingService _logger;
     public List<DetectedThreat> FoundCheats { get; } = [];
     private readonly string _osName;
     private readonly Dictionary<string, string> _browserPaths;
 
-    public BrowserChecker(CheatDatabase cheatDb)
+    public BrowserChecker(CheatDatabase cheatDb, ILoggingService logger)
     {
         _cheatDb = cheatDb;
+        _logger = logger;
         _osName = OperatingSystem.IsWindows() ? "Windows" : 
                   OperatingSystem.IsMacOS() ? "Darwin" : "Linux";
         _browserPaths = GetBrowserPaths();
@@ -121,50 +123,46 @@ public partial class BrowserChecker
     }
 
     /// <summary>
-    /// Получить историю браузера.
-    /// </summary>
-    public (List<(string url, string title, long timestamp)> urls, List<(string filepath, long timestamp)> downloads)
-        GetBrowserHistory(string browserName)
-    {
-        return GetBrowserHistoryAsync(browserName).GetAwaiter().GetResult();
-    }
-
-    /// <summary>
     /// Получить историю браузера (асинхронно).
     /// </summary>
     public async Task<(List<(string url, string title, long timestamp)> urls, List<(string filepath, long timestamp)> downloads)>
-        GetBrowserHistoryAsync(string browserName)
+        GetBrowserHistoryAsync(string browserName, string historyPath)
     {
         var urls = new List<(string, string, long)>();
         var downloads = new List<(string, long)>();
 
         try
         {
-            if (!_browserPaths.TryGetValue(browserName, out var historyPath))
+            if (string.IsNullOrEmpty(historyPath))
                 return (urls, downloads);
+
+            if (browserName.StartsWith("Firefox", StringComparison.OrdinalIgnoreCase))
+            {
+                if (File.Exists(historyPath) && historyPath.EndsWith("places.sqlite", StringComparison.OrdinalIgnoreCase))
+                {
+                    return await ReadFirefoxHistoryAsync(historyPath);
+                }
+
+                if (Directory.Exists(historyPath))
+                {
+                    foreach (var profile in Directory.EnumerateDirectories(historyPath))
+                    {
+                        var dbPath = Path.Combine(profile, "places.sqlite");
+                        if (File.Exists(dbPath))
+                        {
+                            var (profileUrls, profileDownloads) = await ReadFirefoxHistoryAsync(dbPath);
+                            urls.AddRange(profileUrls.Take(AnalysisConstants.MaxBrowserUrls));
+                            downloads.AddRange(profileDownloads.Take(AnalysisConstants.MaxBrowserDownloads));
+                        }
+                    }
+                }
+
+                return (urls, downloads);
+            }
 
             if (!File.Exists(historyPath))
                 return (urls, downloads);
 
-            // Для Firefox (директория с профилями)
-            if (browserName == "Firefox" && Directory.Exists(historyPath))
-            {
-                var profiles = Directory.EnumerateDirectories(historyPath);
-                foreach (var profile in profiles)
-                {
-                    var dbPath = Path.Combine(profile, "places.sqlite");
-                    if (File.Exists(dbPath))
-                    {
-                        var (profileUrls, profileDownloads) = await ReadFirefoxHistoryAsync(dbPath);
-                        urls.AddRange(profileUrls.Take(AnalysisConstants.MaxBrowserUrls));
-                        downloads.AddRange(profileDownloads.Take(AnalysisConstants.MaxBrowserDownloads));
-                        break;
-                    }
-                }
-                return (urls, downloads);
-            }
-
-            // Chrome-based браузеры
             var tempHistory = Path.GetTempFileName();
             try
             {
@@ -172,17 +170,16 @@ public partial class BrowserChecker
 
                 var connectionString = $"Data Source={tempHistory};Mode=ReadOnly";
                 using var conn = new SqliteConnection(connectionString);
-                conn.Open();
+                await conn.OpenAsync();
 
                 try
                 {
-                    // Chrome/Edge: url, title, last_visit_time
                     using var cmd = new SqliteCommand(
-                        "SELECT url, title, last_visit_time FROM urls ORDER BY last_visit_time DESC LIMIT @limit", 
+                        "SELECT url, title, last_visit_time FROM urls ORDER BY last_visit_time DESC LIMIT @limit",
                         conn);
                     cmd.Parameters.AddWithValue("@limit", AnalysisConstants.MaxBrowserUrls);
-                    using var reader = cmd.ExecuteReader();
-                    while (reader.Read())
+                    using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
                     {
                         urls.Add((
                             reader.GetString(0),
@@ -193,18 +190,16 @@ public partial class BrowserChecker
                 }
                 catch (SqliteException)
                 {
-                    // Таблица urls не найдена
                 }
 
                 try
                 {
-                    // Downloads: target_path, start_time
                     using var cmd = new SqliteCommand(
                         "SELECT target_path, start_time FROM downloads ORDER BY start_time DESC LIMIT @limit",
                         conn);
                     cmd.Parameters.AddWithValue("@limit", AnalysisConstants.MaxBrowserDownloads);
-                    using var reader = cmd.ExecuteReader();
-                    while (reader.Read())
+                    using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync())
                     {
                         downloads.Add((
                             reader.GetString(0),
@@ -214,7 +209,6 @@ public partial class BrowserChecker
                 }
                 catch (SqliteException)
                 {
-                    // Таблица downloads не найдена
                 }
             }
             finally
@@ -224,11 +218,76 @@ public partial class BrowserChecker
         }
         catch (Exception)
         {
-            // Игнорируем ошибки
         }
 
         return (urls, downloads);
     }
+
+    /// <summary>
+    /// Перечислить все базы истории (включая профили Chromium).
+    /// </summary>
+    public IEnumerable<(string BrowserName, string HistoryPath)> EnumerateHistoryPaths()
+    {
+        foreach (var (browserName, configuredPath) in _browserPaths)
+        {
+            if (browserName.Equals("Firefox", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!Directory.Exists(configuredPath))
+                    continue;
+
+                foreach (var profile in Directory.EnumerateDirectories(configuredPath))
+                {
+                    var dbPath = Path.Combine(profile, "places.sqlite");
+                    if (File.Exists(dbPath))
+                        yield return ($"{browserName} ({Path.GetFileName(profile)})", dbPath);
+                }
+
+                continue;
+            }
+
+            if (TryGetChromiumUserDataRoot(configuredPath, out var userDataRoot))
+            {
+                foreach (var profileDir in Directory.EnumerateDirectories(userDataRoot))
+                {
+                    var profileName = Path.GetFileName(profileDir);
+                    if (!IsChromiumProfileName(profileName))
+                        continue;
+
+                    var profileHistory = Path.Combine(profileDir, "History");
+                    if (File.Exists(profileHistory))
+                        yield return ($"{browserName} ({profileName})", profileHistory);
+                }
+
+                continue;
+            }
+
+            if (File.Exists(configuredPath))
+                yield return (browserName, configuredPath);
+        }
+    }
+
+    private static bool TryGetChromiumUserDataRoot(string historyPath, out string userDataRoot)
+    {
+        userDataRoot = "";
+        var profileDir = Path.GetDirectoryName(historyPath);
+        if (profileDir == null)
+            return false;
+
+        var profileName = Path.GetFileName(profileDir);
+        if (!IsChromiumProfileName(profileName))
+            return false;
+
+        userDataRoot = Path.GetDirectoryName(profileDir) ?? "";
+        if (!userDataRoot.EndsWith("User Data", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return Directory.Exists(userDataRoot);
+    }
+
+    private static bool IsChromiumProfileName(string profileName) =>
+        profileName.Equals("Default", StringComparison.OrdinalIgnoreCase) ||
+        profileName.StartsWith("Profile", StringComparison.OrdinalIgnoreCase) ||
+        profileName.Equals("Guest Profile", StringComparison.OrdinalIgnoreCase);
 
     private async Task<(List<(string, string, long)>, List<(string, long)>)> ReadFirefoxHistoryAsync(string dbPath)
     {
@@ -293,57 +352,8 @@ public partial class BrowserChecker
         }
         catch (Exception ex)
         {
-            var logger = ServiceContainer.GetService<ILoggingService>();
+            var logger = _logger;
             logger?.Warning($"Ошибка при чтении истории Firefox: {dbPath}", ex);
-        }
-
-        return (urls, downloads);
-    }
-
-    private (List<(string, string, long)>, List<(string, long)>) ReadFirefoxHistory(string dbPath)
-    {
-        var urls = new List<(string, string, long)>();
-        var downloads = new List<(string, long)>();
-
-        try
-        {
-            var tempDb = Path.GetTempFileName();
-            try
-            {
-                FileUtils.CopyFileSafe(dbPath, tempDb);
-
-                var connectionString = $"Data Source={tempDb};Mode=ReadOnly";
-                using var conn = new SqliteConnection(connectionString);
-                conn.Open();
-
-                try
-                {
-                    // Firefox: url, title, last_visit_date
-                    using var cmd = new SqliteCommand(
-                        "SELECT url, title, last_visit_date FROM moz_places ORDER BY last_visit_date DESC LIMIT @limit",
-                        conn);
-                    cmd.Parameters.AddWithValue("@limit", AnalysisConstants.MaxBrowserUrls);
-                    using var reader = cmd.ExecuteReader();
-                    while (reader.Read())
-                    {
-                        urls.Add((
-                            reader.GetString(0),
-                            reader.IsDBNull(1) ? "" : reader.GetString(1),
-                            reader.IsDBNull(2) ? 0 : reader.GetInt64(2)
-                        ));
-                    }
-                }
-                catch (SqliteException) { }
-            }
-            finally
-            {
-                try { File.Delete(tempDb); } catch { }
-            }
-        }
-        catch (Exception ex)
-        {
-            var logger = ServiceContainer.GetService<ILoggingService>();
-            logger?.Warning($"Ошибка при чтении истории браузера. {ex.Message}");
         }
 
         return (urls, downloads);
@@ -409,10 +419,10 @@ public partial class BrowserChecker
     /// </summary>
     public string? CheckUrl(string url, string title = "")
     {
-        var combined = $"{url} {title}".ToLower();
+        var combined = $"{url} {title}";
         foreach (var query in CheatSignatures.SuspiciousQueries)
         {
-            if (combined.Contains(query.ToLower()))
+            if (Utils.SignatureMatcher.MatchesText(combined, query))
                 return query;
         }
         return null;
@@ -423,19 +433,19 @@ public partial class BrowserChecker
     /// </summary>
     public string? CheckFilePath(string filepath)
     {
-        var pathLower = filepath.ToLower();
-        foreach (var query in CheatSignatures.SuspiciousQueries)
-        {
-            if (pathLower.Contains(query.ToLower()))
-                return query;
-        }
-
         try
         {
-            var filename = Path.GetFileName(filepath).ToLower();
+            var pathLower = filepath.ToLowerInvariant();
+            foreach (var query in CheatSignatures.SuspiciousQueries)
+            {
+                if (Utils.SignatureMatcher.MatchesText(pathLower, query))
+                    return query;
+            }
+
+            var filename = Path.GetFileName(filepath);
             foreach (var cheatFile in _cheatDb.CheatFiles)
             {
-                if (filename.Contains(cheatFile.ToLower()))
+                if (Utils.SignatureMatcher.MatchesFileName(filename, cheatFile))
                     return cheatFile;
             }
         }

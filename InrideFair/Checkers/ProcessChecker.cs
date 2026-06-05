@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using InrideFair.Database;
 using InrideFair.Models;
 using InrideFair.Utils;
@@ -20,21 +21,40 @@ public class ProcessChecker
     /// <summary>
     /// Проверить процессы.
     /// </summary>
-    public int CheckProcesses()
+    public int CheckProcesses(CancellationToken cancellationToken = default)
     {
-        var processes = ProcessUtils.GetRunningProcesses();
-        
-        foreach (var proc in processes)
+        var checkedCount = 0;
+
+        foreach (var process in Process.GetProcesses())
         {
-            var procLower = proc.ToLower();
-            foreach (var cheatSig in _cheatDb.CheatProcesses)
+            cancellationToken.ThrowIfCancellationRequested();
+
+            using (process)
             {
-                if (procLower.Contains(cheatSig.ToLower()) && !IsLegitimateProcess(procLower))
+                var processName = process.ProcessName;
+                if (string.IsNullOrEmpty(processName))
+                    continue;
+
+                checkedCount++;
+                var procLower = processName.ToLowerInvariant();
+                if (IsLegitimateProcess(procLower))
+                    continue;
+
+                var executablePath = TryGetExecutablePath(process);
+                var searchText = string.IsNullOrEmpty(executablePath)
+                    ? procLower
+                    : $"{procLower} {executablePath.ToLowerInvariant()}";
+
+                foreach (var cheatSig in _cheatDb.CheatProcesses)
                 {
+                    if (!SignatureMatcher.MatchesText(searchText, cheatSig))
+                        continue;
+
                     FoundCheats.Add(new DetectedThreat
                     {
                         Type = "process",
-                        Name = proc,
+                        Name = processName,
+                        Path = executablePath,
                         Signature = cheatSig,
                         Match = cheatSig,
                         Risk = "high"
@@ -44,7 +64,19 @@ public class ProcessChecker
             }
         }
 
-        return processes.Count;
+        return checkedCount;
+    }
+
+    private static string TryGetExecutablePath(Process process)
+    {
+        try
+        {
+            return process.MainModule?.FileName ?? "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private bool IsLegitimateProcess(string procName)

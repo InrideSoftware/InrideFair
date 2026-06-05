@@ -1,4 +1,5 @@
 using System.IO;
+using InrideFair.Config;
 using InrideFair.Database;
 using InrideFair.Models;
 using InrideFair.Services;
@@ -43,9 +44,9 @@ public class FileSystemChecker
                 foreach (var item in path.EnumerateFileSystemInfos())
                 {
                     if (item is FileInfo)
-                        files.Add(item.Name.ToLower());
+                        files.Add(item.Name.ToLowerInvariant());
                     else if (item is DirectoryInfo)
-                        subdirs.Add(item.Name.ToLower());
+                        subdirs.Add(item.Name.ToLowerInvariant());
                 }
             }
             catch (UnauthorizedAccessException)
@@ -53,72 +54,66 @@ public class FileSystemChecker
                 return (0, indicators);
             }
 
-            // Проверка на loader/injector файлы
             foreach (var f in files)
             {
-                if (Config.CheatSignatures.LoaderKeywords.Any(kw => f.Contains(kw)))
+                if (CheatSignatures.LoaderKeywords.Any(kw => f.Contains(kw, StringComparison.Ordinal)))
                 {
                     suspicionScore += 2;
                     indicators.Add($"Loader: {f}");
                 }
             }
 
-            // Проверка на подозрительные DLL
             foreach (var f in files)
             {
-                if (f.EndsWith(".dll") && Config.CheatSignatures.DllKeywords.Any(kw => f.Contains(kw)))
+                if (f.EndsWith(".dll", StringComparison.Ordinal) &&
+                    CheatSignatures.DllKeywords.Any(kw => f.Contains(kw, StringComparison.Ordinal)))
                 {
                     suspicionScore += 1;
                     indicators.Add($"DLL: {f}");
                 }
             }
 
-            // Проверка конфигов читов
             foreach (var f in files)
             {
-                if (Config.CheatSignatures.ConfigFiles.Contains(f))
+                if (CheatSignatures.ConfigFiles.Contains(f))
                 {
                     suspicionScore += 1;
                     indicators.Add($"Config: {f}");
                 }
             }
 
-            // Проверка папок с названиями читов
             foreach (var d in subdirs)
             {
-                if (Config.CheatSignatures.SuspiciousFolderNames.Any(cf => d.Contains(cf)))
+                if (CheatSignatures.SuspiciousFolderNames.Any(cf => d.Contains(cf, StringComparison.Ordinal)))
                 {
                     suspicionScore += 2;
                     indicators.Add($"Folder: {d}");
                 }
             }
 
-            // Проверка Lua скриптов
-            var luaFiles = files.Where(f => f.EndsWith(".lua")).ToList();
-            if (luaFiles.Count > 0)
+            var luaFiles = files.Count(f => f.EndsWith(".lua", StringComparison.Ordinal));
+            if (luaFiles > 0)
             {
                 suspicionScore += 1;
-                indicators.Add($"Lua: {luaFiles.Count}");
+                indicators.Add($"Lua: {luaFiles}");
             }
 
-            // Проверка количества DLL
-            var dllCount = files.Count(f => f.EndsWith(".dll"));
+            var dllCount = files.Count(f => f.EndsWith(".dll", StringComparison.Ordinal));
             if (dllCount >= 3)
             {
                 suspicionScore += 1;
                 indicators.Add($"DLL count: {dllCount}");
             }
 
-            // Проверка на игровую директорию (не Steam)
-            var dirLower = dirPath.ToLower();
-            if (Config.CheatSignatures.GameKeywords.Any(gk => dirLower.Contains(gk)) &&
-                !Config.CheatSignatures.LegitimateGameDirKeywords.Any(lk => dirLower.Contains(lk)))
+            var dirLower = dirPath.ToLowerInvariant();
+            if (CheatSignatures.GameKeywords.Any(gk => dirLower.Contains(gk, StringComparison.Ordinal)) &&
+                !CheatSignatures.LegitimateGameDirKeywords.Any(lk => dirLower.Contains(lk, StringComparison.Ordinal)))
             {
                 suspicionScore += 1;
                 indicators.Add($"Game dir: {dirPath}");
             }
 
-            suspicionScore = Math.Min(suspicionScore, Config.AnalysisConstants.MaxHeuristicScore);
+            suspicionScore = Math.Min(suspicionScore, AnalysisConstants.MaxHeuristicScore);
         }
         catch (Exception)
         {
@@ -145,7 +140,7 @@ public class FileSystemChecker
     /// <summary>
     /// Проверить директорию.
     /// </summary>
-    public List<DetectedThreat> CheckDirectory(string directory)
+    public List<DetectedThreat> CheckDirectory(string directory, CancellationToken cancellationToken = default)
     {
         var found = new List<DetectedThreat>();
 
@@ -155,98 +150,76 @@ public class FileSystemChecker
             if (!path.Exists)
                 return found;
 
-            var dirPathLower = path.FullName.ToLower();
+            var dirPathLower = path.FullName.ToLowerInvariant();
             if (_cheatDb.IsExcluded(dirPathLower))
                 return found;
 
             var isGameDir = _cheatDb.IsLegitimateGamePath(dirPathLower);
-
-            // Сбор файлов для анализа
-            var filesToCheck = new List<FileInfo>();
-            try
-            {
-                foreach (var item in path.EnumerateFiles("*", SearchOption.AllDirectories))
-                {
-                    try
-                    {
-                        filesToCheck.Add(item);
-                    }
-                    catch (UnauthorizedAccessException ex)
-                    {
-                        // Пропускаем недоступные файлы
-                        _logger.Debug($"Нет доступа к файлу: {ex.Message}");
-                    }
-                }
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger.Warning($"Нет доступа к директории: {ex.Message}");
-                return found;
-            }
+            var filesToCheck = EnumerateFilesLimited(path, AnalysisConstants.MaxScanDepth, AnalysisConstants.MaxFilesPerDirectory, cancellationToken);
 
             foreach (var item in filesToCheck)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 try
                 {
-                    var nameLower = item.Name.ToLower();
-                    var itemPathLower = item.FullName.ToLower();
+                    var nameLower = item.Name.ToLowerInvariant();
+                    var itemPathLower = item.FullName.ToLowerInvariant();
 
-                    // Пропуск системных файлов
                     if (_cheatDb.IsSystemFile(itemPathLower))
                         continue;
 
-                    // Пропуск DLL в игровых директориях (кроме известных читов)
-                    if (isGameDir && nameLower.EndsWith(".dll"))
+                    if (ReportFileDetector.IsReportFilePath(item.FullName))
+                        continue;
+
+                    if (isGameDir && nameLower.EndsWith(".dll", StringComparison.Ordinal))
                     {
                         var isKnownCheat = new[] { "osiris", "neverlose", "primordial", "paste" }
-                            .Any(cheat => nameLower.Contains(cheat));
+                            .Any(cheat => nameLower.Contains(cheat, StringComparison.Ordinal));
                         if (!isKnownCheat)
                             continue;
                     }
 
-                    // Проверка по имени файла
                     var foundMatch = false;
                     foreach (var cheatFile in _cheatDb.CheatFiles)
                     {
-                        if (nameLower == cheatFile.ToLower())
+                        if (!SignatureMatcher.MatchesFileName(nameLower, cheatFile))
+                            continue;
+
+                        found.Add(new DetectedThreat
                         {
-                            found.Add(new DetectedThreat
-                            {
-                                Type = "file",
-                                Path = item.FullName,
-                                Match = cheatFile,
-                                Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "N/A",
-                                ExactMatch = true,
-                                Risk = "medium"
-                            });
-                            foundMatch = true;
-                            break;
-                        }
+                            Type = "file",
+                            Path = item.FullName,
+                            Match = cheatFile,
+                            Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "",
+                            ExactMatch = true,
+                            Risk = "high"
+                        });
+                        foundMatch = true;
+                        break;
                     }
 
                     if (!foundMatch)
                     {
                         foreach (var cheatSig in _cheatDb.CheatProcesses)
                         {
-                            if (nameLower.Contains(cheatSig.ToLower()))
+                            if (!SignatureMatcher.MatchesFileName(nameLower, cheatSig))
+                                continue;
+
+                            found.Add(new DetectedThreat
                             {
-                                found.Add(new DetectedThreat
-                                {
-                                    Type = "file",
-                                    Path = item.FullName,
-                                    Match = cheatSig,
-                                    Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "N/A",
-                                    ExactMatch = false,
-                                    Risk = "medium"
-                                });
-                                break;
-                            }
+                                Type = "file",
+                                Path = item.FullName,
+                                Match = cheatSig,
+                                ExactMatch = false,
+                                Risk = "medium"
+                            });
+                            break;
                         }
                     }
 
-                    // Быстрый анализ DLL/EXE (только малые файлы)
-                    if ((item.Extension.ToLower() == ".dll" || item.Extension.ToLower() == ".exe") &&
-                        item.Length < 2 * 1024 * 1024)
+                    var extension = item.Extension.ToLowerInvariant();
+                    if ((extension is ".dll" or ".exe") && item.Length < 2 * 1024 * 1024)
                     {
                         var (score, indicators) = FileAnalyzer.AnalyzeDllFile(item.FullName);
                         if (score >= 5)
@@ -256,7 +229,7 @@ public class FileSystemChecker
                                 Type = "file",
                                 Path = item.FullName,
                                 Match = $"Analysis: {score}/10",
-                                Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "N/A",
+                                Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "",
                                 AnalysisScore = score,
                                 Indicators = indicators,
                                 Risk = score >= 8 ? "high" : "medium"
@@ -264,8 +237,7 @@ public class FileSystemChecker
                         }
                     }
 
-                    // Анализ конфигов
-                    if (item.Extension.ToLower() is ".json" or ".ini" or ".cfg")
+                    if (extension is ".json" or ".ini" or ".cfg")
                     {
                         var (score, indicators) = FileAnalyzer.AnalyzeConfigFile(item.FullName);
                         if (score >= 5)
@@ -275,7 +247,6 @@ public class FileSystemChecker
                                 Type = "file",
                                 Path = item.FullName,
                                 Match = $"Config: {score}/10",
-                                Hash = FileAnalyzer.GetFileHash(item.FullName) ?? "N/A",
                                 AnalysisScore = score,
                                 Indicators = indicators,
                                 Risk = score >= 8 ? "high" : "medium"
@@ -285,19 +256,20 @@ public class FileSystemChecker
                 }
                 catch (UnauthorizedAccessException ex)
                 {
-                    // Пропускаем недоступные файлы
                     _logger.Debug($"Нет доступа к файлу при сканировании: {ex.Message}");
                 }
                 catch (Exception ex)
                 {
-                    // Пропускаем ошибки
                     _logger.Debug($"Ошибка при обработке файла: {ex.Message}");
                 }
             }
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
-            // Игнорируем ошибки
             _logger.Warning($"Ошибка при сканировании директории: {ex.Message}");
         }
 
@@ -307,26 +279,95 @@ public class FileSystemChecker
     /// <summary>
     /// Проверить систему.
     /// </summary>
-    public int CheckSystem()
+    public int CheckSystem(CancellationToken cancellationToken = default)
     {
         var allFound = new List<DetectedThreat>();
 
         foreach (var suspPath in _cheatDb.SuspiciousPaths)
         {
-            _ = AnalyzeDirectoryHeuristic(suspPath);
-            allFound.AddRange(CheckDirectory(suspPath));
+            cancellationToken.ThrowIfCancellationRequested();
+            allFound.AddRange(CheckDirectoryWithHeuristic(suspPath, cancellationToken));
         }
 
-        // Проверка ProgramData на Windows
         if (OperatingSystem.IsWindows())
         {
             var programData = Environment.GetEnvironmentVariable("PROGRAMDATA") ?? @"C:\ProgramData";
-            _ = AnalyzeDirectoryHeuristic(programData);
-            allFound.AddRange(CheckDirectory(programData));
+            cancellationToken.ThrowIfCancellationRequested();
+            allFound.AddRange(CheckDirectoryWithHeuristic(programData, cancellationToken));
         }
 
         FoundCheats.AddRange(allFound);
-
         return allFound.Count;
+    }
+
+    private List<DetectedThreat> CheckDirectoryWithHeuristic(string directory, CancellationToken cancellationToken)
+    {
+        var found = CheckDirectory(directory, cancellationToken);
+        var (score, indicators) = AnalyzeDirectoryHeuristic(directory);
+
+        if (score >= AnalysisConstants.HeuristicThreatScoreThreshold)
+        {
+            found.Add(new DetectedThreat
+            {
+                Type = "directory_heuristic",
+                Path = directory,
+                Match = $"Heuristic: {GetSuspicionLabel(score)} ({score})",
+                AnalysisScore = score,
+                Indicators = indicators,
+                Risk = score >= 3 ? "high" : "medium"
+            });
+        }
+
+        return found;
+    }
+
+    internal static IEnumerable<FileInfo> EnumerateFilesLimited(
+        DirectoryInfo root,
+        int maxDepth,
+        int maxFiles,
+        CancellationToken cancellationToken)
+    {
+        var count = 0;
+        var queue = new Queue<(DirectoryInfo Directory, int Depth)>();
+        queue.Enqueue((root, 0));
+
+        while (queue.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var (directory, depth) = queue.Dequeue();
+            if (depth > maxDepth)
+                continue;
+
+            IEnumerable<FileSystemInfo> entries;
+            try
+            {
+                entries = directory.EnumerateFileSystemInfos();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            foreach (var entry in entries)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (entry is FileInfo file)
+                {
+                    yield return file;
+                    count++;
+                    if (count >= maxFiles)
+                        yield break;
+                }
+                else if (entry is DirectoryInfo subDirectory && depth < maxDepth)
+                {
+                    queue.Enqueue((subDirectory, depth + 1));
+                }
+            }
+
+            if (count >= maxFiles)
+                yield break;
+        }
     }
 }

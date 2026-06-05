@@ -203,6 +203,36 @@ public static class CheatSignatures
     ];
 
     /// <summary>
+    /// Специфичные поля для эвристики конфигов (без UI/игровых терминов).
+    /// </summary>
+    public static readonly string[] CheatConfigFields =
+    [
+        "aimbot", "triggerbot", "bunnyhop", "antiaim", "resolver", "desync",
+        "wallhack", "silent aim", "ragebot", "legitbot", "skinchanger",
+        "no recoil", "no spread", "bhop", "autowall", "hitchance", "mindamage",
+        "chams", "glow esp", "player esp", "box esp", "skeleton esp",
+        "manual map", "kdmapper", "writeprocessmemory", "createremotethread",
+        "imgui", "luajit", "undetectable", "vanguard bypass", "eac bypass",
+        "battleeye bypass", "faceit bypass", "inventory changer"
+    ];
+
+    private static IReadOnlyList<string>? _configFieldIndicators;
+
+    public static IReadOnlyList<string> GetConfigFieldIndicators()
+    {
+        if (_configFieldIndicators != null)
+            return _configFieldIndicators;
+
+        var external = SignatureLoader.Load();
+        _configFieldIndicators = CheatConfigFields
+            .Concat(external.ConfigFieldIndicators)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return _configFieldIndicators;
+    }
+
+    /// <summary>
     /// Подозрительные поисковые запросы для браузеров.
     /// </summary>
     public static readonly string[] SuspiciousQueries =

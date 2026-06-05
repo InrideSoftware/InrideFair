@@ -15,9 +15,9 @@ public partial class BrowserChecker
     /// <summary>
     /// Проверить браузер.
     /// </summary>
-    public (int foundQueries, int foundDownloads) CheckBrowser(string browserName)
+    public (int foundQueries, int foundDownloads) CheckBrowser(string browserName, string historyPath)
     {
-        var (urls, downloads) = GetBrowserHistory(browserName);
+        var (urls, downloads) = GetBrowserHistoryAsync(browserName, historyPath).GetAwaiter().GetResult();
         var foundQueries = 0;
         var foundDownloads = 0;
 
@@ -114,7 +114,7 @@ public partial class BrowserChecker
             }
             catch (Exception ex)
             {
-                var logger = ServiceContainer.GetService<ILoggingService>();
+                var logger = _logger;
                 logger?.Warning($"Ошибка при проверке кэша браузера: {browserName}", ex);
             }
         }
@@ -156,8 +156,7 @@ public partial class BrowserChecker
         }
         catch (Exception ex)
         {
-            var logger = ServiceContainer.GetService<ILoggingService>();
-            logger?.Warning($"Ошибка при парсинге кэш файла: {cachePath}", ex);
+            _logger.Warning($"Ошибка при парсинге кэш файла: {cachePath}", ex);
         }
 
         return results;
@@ -215,8 +214,7 @@ public partial class BrowserChecker
         }
         catch (Exception ex)
         {
-            var logger = ServiceContainer.GetService<ILoggingService>();
-            logger?.Warning($"Ошибка при сканировании логов браузера: {browserName}", ex);
+            _logger.Warning($"Ошибка при сканировании логов браузера: {browserName}", ex);
         }
 
         return found;
@@ -277,15 +275,13 @@ public partial class BrowserChecker
                 }
                 catch (Exception ex)
                 {
-                    var logger = ServiceContainer.GetService<ILoggingService>();
-                    logger?.Warning($"Ошибка при чтении файла сессии: {item.FullName}", ex);
+                    _logger.Warning($"Ошибка при чтении файла сессии: {item.FullName}", ex);
                 }
             }
         }
         catch (Exception ex)
         {
-            var logger = ServiceContainer.GetService<ILoggingService>();
-            logger?.Warning($"Ошибка при сканировании файлов сессии: {sessionDir}", ex);
+            _logger.Warning($"Ошибка при сканировании файлов сессии: {sessionDir}", ex);
         }
 
         return found;
@@ -337,8 +333,7 @@ public partial class BrowserChecker
             }
             catch (Exception ex)
             {
-                var logger = ServiceContainer.GetService<ILoggingService>();
-                logger?.Warning("Ошибка при проверке DNS кэша", ex);
+                _logger.Warning("Ошибка при проверке DNS кэша", ex);
             }
         }
         else if (_osName is "Darwin" or "Linux")
@@ -367,8 +362,7 @@ public partial class BrowserChecker
             }
             catch (Exception ex)
             {
-                var logger = ServiceContainer.GetService<ILoggingService>();
-                logger?.Warning("Ошибка при чтении /etc/hosts", ex);
+                _logger.Warning("Ошибка при чтении /etc/hosts", ex);
             }
         }
 
@@ -426,15 +420,13 @@ public partial class BrowserChecker
                 }
                 catch (Exception ex)
                 {
-                    var logger = ServiceContainer.GetService<ILoggingService>();
-                    logger?.Warning($"Ошибка при чтении prefetch файла: {prefetchFile.FullName}", ex);
+                    _logger.Warning($"Ошибка при чтении prefetch файла: {prefetchFile.FullName}", ex);
                 }
             }
         }
         catch (Exception ex)
         {
-            var logger = ServiceContainer.GetService<ILoggingService>();
-            logger?.Warning("Ошибка при сканировании Windows Prefetch", ex);
+            _logger.Warning("Ошибка при сканировании Windows Prefetch", ex);
         }
 
         return found;
@@ -443,62 +435,62 @@ public partial class BrowserChecker
     /// <summary>
     /// Проверить все браузеры.
     /// </summary>
-    public int CheckAllBrowsers()
+    public int CheckAllBrowsers(CancellationToken cancellationToken = default)
     {
         var totalQueries = 0;
         var totalDownloads = 0;
         var totalCache = 0;
-        var totalLogs = 0;
         var totalSessions = 0;
         var totalDns = 0;
         var totalPrefetch = 0;
 
-        // Проверка истории
-        foreach (var browserName in _browserPaths.Keys)
+        var historyPaths = EnumerateHistoryPaths().ToList();
+
+        foreach (var (browserName, historyPath) in historyPaths)
         {
-            var (queries, downloads) = CheckBrowser(browserName);
+            cancellationToken.ThrowIfCancellationRequested();
+            var (queries, downloads) = CheckBrowser(browserName, historyPath);
             totalQueries += queries;
             totalDownloads += downloads;
         }
 
-        // Проверка кэша
         var cachePaths = GetBrowserCachePaths();
         foreach (var (browserName, paths) in cachePaths)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var cacheFindings = ScanCacheDirectory(paths, browserName);
             FoundCheats.AddRange(cacheFindings);
             totalCache += cacheFindings.Count;
         }
 
-        // Проверка логов (упрощённо)
-        // Можно добавить пути к логам при необходимости
-
-        // Проверка сессионных файлов
-        foreach (var browserName in _browserPaths.Keys)
+        foreach (var (browserName, historyPath) in historyPaths)
         {
-            var sessionDir = Path.GetDirectoryName(_browserPaths[browserName]);
-            if (!string.IsNullOrEmpty(sessionDir) && Directory.Exists(sessionDir))
-            {
-                var sessionFindings = ScanSessionFiles(sessionDir);
-                FoundCheats.AddRange(sessionFindings);
-                totalSessions += sessionFindings.Count;
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            var sessionDir = Path.GetDirectoryName(historyPath);
+            if (string.IsNullOrEmpty(sessionDir) || !Directory.Exists(sessionDir))
+                continue;
+
+            var sessionFindings = ScanSessionFiles(sessionDir);
+            FoundCheats.AddRange(sessionFindings);
+            totalSessions += sessionFindings.Count;
         }
 
-        // Проверка DNS кэша
-        var dnsFindings = ScanDnsCache();
-        FoundCheats.AddRange(dnsFindings);
-        totalDns = dnsFindings.Count;
-
-        // Проверка Prefetch (Windows)
-        if (_osName == "Windows")
+        if (_cheatDb.Settings.DeepScanDns)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var dnsFindings = ScanDnsCache();
+            FoundCheats.AddRange(dnsFindings);
+            totalDns = dnsFindings.Count;
+        }
+
+        if (_osName == "Windows" && _cheatDb.Settings.DeepScanPrefetch)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             var prefetchFindings = ScanPrefetch();
             FoundCheats.AddRange(prefetchFindings);
             totalPrefetch = prefetchFindings.Count;
         }
 
-        var total = totalQueries + totalDownloads + totalCache + totalLogs + totalSessions + totalDns + totalPrefetch;
-        return total;
+        return totalQueries + totalDownloads + totalCache + totalSessions + totalDns + totalPrefetch;
     }
 }

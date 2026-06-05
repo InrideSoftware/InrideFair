@@ -19,4 +19,14 @@ public record AppConfig
     /// Пользовательские сигнатуры.
     /// </summary>
     public List<string> CustomSignatures { get; init; } = [];
+
+    /// <summary>
+    /// Глубокая проверка DNS-кэша (шумная, по умолчанию выключена).
+    /// </summary>
+    public bool DeepScanDns { get; init; }
+
+    /// <summary>
+    /// Проверка Windows Prefetch.
+    /// </summary>
+    public bool DeepScanPrefetch { get; init; } = true;
 }

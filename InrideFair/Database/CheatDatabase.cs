@@ -10,34 +10,56 @@ namespace InrideFair.Database;
 /// </summary>
 public class CheatDatabase
 {
-    private readonly AppConfig _config;
+    private AppConfig _config;
 
-    public List<string> CustomExclusions { get; }
-    public List<string> CustomSignatures { get; }
-    public List<string> CheatProcesses { get; }
-    public List<string> CheatFiles { get; }
-    public List<string> ArchiveExtensions { get; }
-    public List<string> SystemFiles { get; }
-    public List<string> SuspiciousPaths { get; }
-    public List<object> RegistryKeys { get; }
+    public List<string> CustomExclusions { get; } = [];
+    public List<string> CustomSignatures { get; } = [];
+    public List<string> CheatProcesses { get; } = [];
+    public List<string> CheatFiles { get; } = [];
+    public List<string> ArchiveExtensions { get; } = [];
+    public List<string> SystemFiles { get; } = [];
+    public List<string> SuspiciousPaths { get; private set; } = [];
+    public List<object> RegistryKeys { get; private set; } = [];
+
+    public AppConfig Settings => _config;
 
     public CheatDatabase(AppConfig? config = null)
     {
         _config = config ?? ConfigValidator.ValidateAndLoad();
+        ReloadSettings(_config);
+    }
 
-        CustomExclusions = _config.CustomExclusions;
-        CustomSignatures = _config.CustomSignatures;
-        CheatProcesses = [.. CheatSignatures.CheatProcesses, .. CustomSignatures];
-        CheatFiles = [.. CheatSignatures.CheatFiles];
-        ArchiveExtensions = [.. CheatSignatures.ArchiveExtensions];
-        SystemFiles = [.. CheatSignatures.SystemFiles];
+    public void ReloadSettings(AppConfig? config = null)
+    {
+        _config = config ?? ConfigValidator.ValidateAndLoad();
+
+        CustomExclusions.Clear();
+        CustomExclusions.AddRange(_config.CustomExclusions);
+
+        CustomSignatures.Clear();
+        CustomSignatures.AddRange(_config.CustomSignatures);
+
+        var external = SignatureLoader.Load();
+
+        CheatProcesses.Clear();
+        CheatProcesses.AddRange(CheatSignatures.CheatProcesses);
+        CheatProcesses.AddRange(external.Processes);
+        CheatProcesses.AddRange(CustomSignatures);
+
+        CheatFiles.Clear();
+        CheatFiles.AddRange(CheatSignatures.CheatFiles);
+        CheatFiles.AddRange(external.Files);
+
+        ArchiveExtensions.Clear();
+        ArchiveExtensions.AddRange(CheatSignatures.ArchiveExtensions);
+
+        SystemFiles.Clear();
+        SystemFiles.AddRange(CheatSignatures.SystemFiles);
+
         SuspiciousPaths = GetSuspiciousPaths();
         RegistryKeys = GetRegistryKeys();
     }
 
-    /// <summary>
-    /// Получить подозрительные пути для текущей ОС.
-    /// </summary>
     private List<string> GetSuspiciousPaths()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -62,7 +84,6 @@ public class CheatDatabase
             ];
         }
 
-        // Linux
         return
         [
             "/tmp",
@@ -72,9 +93,6 @@ public class CheatDatabase
         ];
     }
 
-    /// <summary>
-    /// Получить ключи реестра/конфигурации для текущей ОС.
-    /// </summary>
     private List<object> GetRegistryKeys()
     {
         if (OperatingSystem.IsWindows())
@@ -100,7 +118,6 @@ public class CheatDatabase
             ];
         }
 
-        // Linux autostart
         return
         [
             Path.Combine(home, ".config", "autostart"),
@@ -109,36 +126,24 @@ public class CheatDatabase
         ];
     }
 
-    /// <summary>
-    /// Проверить, исключён ли путь.
-    /// </summary>
     public bool IsExcluded(string path)
     {
-        var pathLower = path.ToLower();
-        return CustomExclusions.Any(e => 
-            e.ToLower().Contains(pathLower) || pathLower.Contains(e.ToLower()));
+        var pathLower = path.ToLowerInvariant();
+        return CustomExclusions.Any(e =>
+            e.ToLowerInvariant().Contains(pathLower) || pathLower.Contains(e.ToLowerInvariant()));
     }
 
-    /// <summary>
-    /// Проверить, является ли файл системным.
-    /// </summary>
     public bool IsSystemFile(string path)
     {
-        var pathLower = path.ToLower();
-        return SystemFiles.Any(sf => pathLower.Contains(sf.ToLower()));
+        var pathLower = path.ToLowerInvariant();
+        return SystemFiles.Any(sf => pathLower.Contains(sf.ToLowerInvariant()));
     }
 
-    /// <summary>
-    /// Проверить, является ли путь легитимной игровой директорией.
-    /// </summary>
     public bool IsLegitimateGamePath(string path)
     {
-        var pathLower = path.ToLower();
-        return CheatSignatures.LegitimateGamePaths.Any(legit => pathLower.Contains(legit.ToLower()));
+        var pathLower = path.ToLowerInvariant();
+        return CheatSignatures.LegitimateGamePaths.Any(legit => pathLower.Contains(legit.ToLowerInvariant()));
     }
 }
 
-/// <summary>
-/// Информация о ключе реестра.
-/// </summary>
 public record RegistryKeyInfo(RegistryHive Hive, string Path);

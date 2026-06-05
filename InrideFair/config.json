@@ -4,5 +4,7 @@
     "C:\\Program Files (x86)",
     "C:\\Windows"
   ],
-  "CustomSignatures": []
+  "CustomSignatures": [],
+  "DeepScanDns": false,
+  "DeepScanPrefetch": true
 }

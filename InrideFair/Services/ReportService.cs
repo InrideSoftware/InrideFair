@@ -47,12 +47,23 @@ public record SummaryData
 public record ThreatData
 {
     public string Type { get; init; } = "";
+    public string Name { get; init; } = "";
     public string Path { get; init; } = "";
+    public string ArchivePath { get; init; } = "";
+    public string FilePath { get; init; } = "";
     public string Match { get; init; } = "";
     public string Hash { get; init; } = "";
     public string Risk { get; init; } = "";
     public int? AnalysisScore { get; init; }
     public List<string> Indicators { get; init; } = [];
+    public string Browser { get; init; } = "";
+    public string Url { get; init; } = "";
+    public string Title { get; init; } = "";
+    public string Hive { get; init; } = "";
+    public string KeyPath { get; init; } = "";
+    public string ValueName { get; init; } = "";
+    public string ValueData { get; init; } = "";
+    public bool ExactMatch { get; init; }
 }
 
 /// <summary>
@@ -463,7 +474,7 @@ public class ReportService : IReportService
         var sb = new StringBuilder();
         foreach (var threat in threats)
         {
-            var riskClass = threat.Risk.ToLower();
+            var riskClass = threat.Risk.ToLowerInvariant();
             var riskText = threat.Risk switch
             {
                 "high" => "Высокий",
@@ -485,6 +496,26 @@ public class ReportService : IReportService
                    </div>"
                 : "";
 
+            var hashHtml = !string.IsNullOrEmpty(threat.Hash)
+                ? $@"<div class=""threat-detail"">
+                    <span class=""label"">Хеш (MD5)</span>
+                    <span class=""value"">{System.Net.WebUtility.HtmlEncode(threat.Hash)}</span>
+                   </div>"
+                : "";
+
+            var extraDetails = new StringBuilder();
+            AppendDetail(extraDetails, "Тип", threat.Type);
+            AppendDetail(extraDetails, "Имя", threat.Name);
+            AppendDetail(extraDetails, "Браузер", threat.Browser);
+            AppendDetail(extraDetails, "URL", threat.Url);
+            AppendDetail(extraDetails, "Заголовок", threat.Title);
+            AppendDetail(extraDetails, "Архив", threat.ArchivePath);
+            AppendDetail(extraDetails, "Файл", threat.FilePath);
+            AppendDetail(extraDetails, "Hive", threat.Hive);
+            AppendDetail(extraDetails, "Ключ", threat.KeyPath);
+            AppendDetail(extraDetails, "Значение", threat.ValueName);
+            AppendDetail(extraDetails, "Данные", threat.ValueData);
+
             sb.Append($@"
             <div class=""threat-item {riskClass}"">
                 <div class=""threat-header"">
@@ -495,15 +526,24 @@ public class ReportService : IReportService
                     <span style=""color: #64748b;"">Совпадение:</span> {System.Net.WebUtility.HtmlEncode(threat.Match)}
                 </div>
                 <div class=""threat-details"">
-                    <div class=""threat-detail"">
-                        <span class=""label"">Хеш (MD5)</span>
-                        <span class=""value"">{threat.Hash}</span>
-                    </div>
+                    {hashHtml}
                     {scoreHtml}
+                    {extraDetails}
                 </div>
                 {indicatorsHtml}
             </div>");
         }
         return sb.ToString();
+    }
+
+    private static void AppendDetail(StringBuilder sb, string label, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        sb.Append($@"<div class=""threat-detail"">
+                    <span class=""label"">{label}</span>
+                    <span class=""value"">{System.Net.WebUtility.HtmlEncode(value)}</span>
+                   </div>");
     }
 }

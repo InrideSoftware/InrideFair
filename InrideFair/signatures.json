@@ -1,0 +1,28 @@
+{
+  "Version": "1.2.0",
+  "Processes": [],
+  "Files": [],
+  "ConfigFieldIndicators": [
+    "aimbot",
+    "triggerbot",
+    "bunnyhop",
+    "antiaim",
+    "resolver",
+    "desync",
+    "wallhack",
+    "silent aim",
+    "ragebot",
+    "legitbot",
+    "skinchanger",
+    "no recoil",
+    "no spread",
+    "triggerbot",
+    "bhop",
+    "offsets",
+    "signatures",
+    "imgui",
+    "injector",
+    "manual map",
+    "kdmapper"
+  ]
+}

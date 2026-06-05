@@ -27,6 +27,8 @@ public static class AnalysisConstants
 
     // Константы сканирования директорий
     public const int MaxScanDepth = 2;
+    public const int MaxFilesPerDirectory = 8000;
+    public const int HeuristicThreatScoreThreshold = 2;
     public const int ProgressThreshold = 100;
     public const int ProgressBarLength = 30;
 }

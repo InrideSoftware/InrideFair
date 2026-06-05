@@ -12,16 +12,15 @@ namespace InrideFair.Checkers;
 public class ArchiveChecker
 {
     private readonly CheatDatabase _cheatDb;
+    private readonly ILoggingService _logger;
     public List<DetectedThreat> FoundCheats { get; } = [];
 
-    public ArchiveChecker(CheatDatabase cheatDb)
+    public ArchiveChecker(CheatDatabase cheatDb, ILoggingService logger)
     {
         _cheatDb = cheatDb;
+        _logger = logger;
     }
 
-    /// <summary>
-    /// Найти архивы в директории.
-    /// </summary>
     public List<string> FindArchives(string directory)
     {
         var archives = new List<string>();
@@ -40,21 +39,17 @@ public class ArchiveChecker
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    // Пропускаем недоступные файлы
                 }
             }
         }
         catch (Exception ex)
         {
-            var logger = ServiceContainer.GetService<ILoggingService>();
-            logger?.Warning($"Ошибка при проверке архивов в {directory}", ex);
+            _logger.Warning($"Ошибка при проверке архивов в {directory}", ex);
         }
+
         return archives;
     }
 
-    /// <summary>
-    /// Проверить содержимое архива.
-    /// </summary>
     public List<DetectedThreat> CheckArchiveContents(string archivePath)
     {
         var found = new List<DetectedThreat>();
@@ -71,6 +66,9 @@ public class ArchiveChecker
                 try
                 {
                     var nameLower = item.Name.ToLower();
+
+                    if (ReportFileDetector.IsReportFilePath(item.FullName))
+                        continue;
 
                     foreach (var cheatFile in _cheatDb.CheatFiles)
                     {
@@ -92,17 +90,14 @@ public class ArchiveChecker
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    // Пропускаем недоступные файлы
                 }
                 catch (Exception)
                 {
-                    // Пропускаем ошибки
                 }
             }
         }
         catch (Exception)
         {
-            // Игнорируем ошибки
         }
         finally
         {
@@ -112,17 +107,13 @@ public class ArchiveChecker
             }
             catch
             {
-                // Игнорируем ошибки удаления
             }
         }
 
         return found;
     }
 
-    /// <summary>
-    /// Проверить архивы в директории.
-    /// </summary>
-    public int CheckArchivesInDirectory(string directory)
+    public int CheckArchivesInDirectory(string directory, CancellationToken cancellationToken = default)
     {
         var archives = FindArchives(directory);
         if (archives.Count == 0)
@@ -131,6 +122,7 @@ public class ArchiveChecker
         var totalFound = 0;
         foreach (var archive in archives)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var found = CheckArchiveContents(archive);
             foreach (var item in found)
             {

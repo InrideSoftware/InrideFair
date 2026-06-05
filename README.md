@@ -2,7 +2,14 @@
 
 Inride Fair is a Windows desktop utility for detecting suspicious files, processes, browser artifacts, registry traces, and other indicators commonly associated with cheats or unwanted software.
 
-Current release: **1.1.0**
+Current release: **1.2.0**
+
+## Highlights in 1.2.0
+
+- Settings UI, threat filters, scan diff, and timestamped reports
+- Parallel scanning, deduplication, and external `signatures.json`
+- Fewer false positives; own reports excluded from file scan
+- DNS deep scan off by default
 
 ## Highlights in 1.1.0
 

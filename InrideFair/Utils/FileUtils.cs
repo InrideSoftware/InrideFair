@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using InrideFair.Services;
+using InrideFair.Config;
 
 namespace InrideFair.Utils;
 
@@ -148,10 +148,8 @@ public static class FileAnalyzer
             var hash = md5.ComputeHash(stream);
             return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            var logger = ServiceContainer.GetService<ILoggingService>();
-            logger?.Warning($"Не удалось получить хеш файла: {filepath}", ex);
             return null;
         }
     }
@@ -225,10 +223,8 @@ public static class FileAnalyzer
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            var logger = ServiceContainer.GetService<ILoggingService>();
-            logger?.Warning($"Ошибка при анализе файла: {filepath}", ex);
         }
 
         return (Math.Min(score, 10), indicators.Take(3).ToList());
@@ -239,33 +235,60 @@ public static class FileAnalyzer
     /// </summary>
     public static (int score, List<string> indicators) AnalyzeConfigFile(string filepath)
     {
+        if (ReportFileDetector.IsReportFilePath(filepath))
+            return (0, []);
+
         var score = 0;
         var indicators = new List<string>();
 
         try
         {
             var content = File.ReadAllText(filepath, Encoding.UTF8);
-            var contentLower = content.ToLower();
 
-            // Проверка названий читов
+            if (filepath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
+                ReportFileDetector.IsReportJsonContent(content))
+            {
+                return (0, []);
+            }
+
+            if (filepath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
+                ReportFileDetector.IsReportJsonContent(content))
+            {
+                return (0, []);
+            }
+
+            if (filepath.EndsWith(".html", StringComparison.OrdinalIgnoreCase) &&
+                ReportFileDetector.IsReportHtmlContent(content))
+            {
+                return (0, []);
+            }
+
+            var contentLower = content.ToLowerInvariant();
+            var categories = 0;
+
             foreach (var name in Config.CheatSignatures.CheatNames)
             {
-                if (contentLower.Contains(name))
-                {
-                    score += 3;
-                    indicators.Add($"Cheat name: {name}");
-                }
+                if (!contentLower.Contains(name, StringComparison.Ordinal))
+                    continue;
+
+                score += 3;
+                indicators.Add($"Cheat name: {name}");
             }
 
-            // Проверка полей читов
-            foreach (var field in Config.CheatSignatures.CheatFields)
+            if (indicators.Any(i => i.StartsWith("Cheat name", StringComparison.Ordinal)))
+                categories++;
+
+            foreach (var field in Config.CheatSignatures.GetConfigFieldIndicators())
             {
-                if (contentLower.Contains(field))
-                {
-                    score += 1;
-                    indicators.Add($"Field: {field}");
-                }
+                if (!contentLower.Contains(field, StringComparison.Ordinal))
+                    continue;
+
+                score += 2;
+                indicators.Add($"Field: {field}");
             }
+
+            if (indicators.Any(i => i.StartsWith("Field:", StringComparison.Ordinal)))
+                categories++;
 
             // Проверка структуры JSON читов
             if (filepath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
@@ -275,23 +298,25 @@ public static class FileAnalyzer
                     using var doc = System.Text.Json.JsonDocument.Parse(content);
                     var root = doc.RootElement;
 
-                    // Проверка на наличие offsets/signatures
                     if (root.TryGetProperty("offsets", out _) || root.TryGetProperty("signatures", out _))
                     {
                         score += 3;
                         indicators.Add("Contains offsets/signatures");
+                        categories++;
                     }
 
-                    // Проверка на наличие настроек чита
-                    var cheatKeys = new[] { "aimbot", "visuals", "misc", "skins", "config" };
+                    var cheatKeys = new[] { "aimbot", "visuals", "misc", "skins" };
                     foreach (var key in cheatKeys)
                     {
-                        if (root.TryGetProperty(key, out _))
-                        {
-                            score += 2;
-                            indicators.Add($"JSON key: {key}");
-                        }
+                        if (!root.TryGetProperty(key, out _))
+                            continue;
+
+                        score += 2;
+                        indicators.Add($"JSON key: {key}");
                     }
+
+                    if (indicators.Any(i => i.StartsWith("JSON key", StringComparison.Ordinal)))
+                        categories++;
                 }
                 catch (System.Text.Json.JsonException)
                 {
@@ -305,23 +330,21 @@ public static class FileAnalyzer
                 var iniSections = new[] { "[Aimbot]", "[Visuals]", "[ESP]", "[Skins]", "[Misc]" };
                 foreach (var section in iniSections)
                 {
-                    if (content.Contains(section, StringComparison.OrdinalIgnoreCase))
-                    {
-                        score += 3;
-                        indicators.Add($"INI section: {section}");
-                    }
-                }
-            }
+                    if (!content.Contains(section, StringComparison.OrdinalIgnoreCase))
+                        continue;
 
-            // Проверка на наличие хешей/ключей
-            var hashPattern = new System.Text.RegularExpressions.Regex(@"[a-fA-F0-9]{32,64}");
-            if (hashPattern.IsMatch(content))
-            {
-                score += 1;
-                indicators.Add("Contains hash/key");
+                    score += 3;
+                    indicators.Add($"INI section: {section}");
+                }
+
+                if (indicators.Any(i => i.StartsWith("INI section", StringComparison.Ordinal)))
+                    categories++;
             }
 
             score = Math.Min(score, Config.AnalysisConstants.MaxConfigAnalysisScore);
+
+            if (categories < 2)
+                return (0, []);
         }
         catch (Exception)
         {

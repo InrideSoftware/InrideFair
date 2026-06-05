@@ -50,6 +50,7 @@ jobs:
     - name: Copy additional files
       run: |
         Copy-Item "InrideFair/config.json" "publish/config.json" -ErrorAction SilentlyContinue
+        Copy-Item "InrideFair/signatures.json" "publish/signatures.json" -ErrorAction SilentlyContinue
         Copy-Item "README.md" "publish/README.md" -ErrorAction SilentlyContinue
         Copy-Item "CHANGELOG.md" "publish/CHANGELOG.md" -ErrorAction SilentlyContinue
         Copy-Item "LICENSE" "publish/LICENSE" -ErrorAction SilentlyContinue
@@ -100,10 +101,10 @@ jobs:
         ## Inride Fair v${VER}
 
         Key updates:
-        - Refreshed WPF interface and branding
-        - Typed threat model and improved scanner internals
-        - Automated xUnit tests in CI
-        - Updated Release and portable Distribution packaging
+        - Settings UI, threat filters, and timestamped reports with scan diff
+        - Parallel scanning, deduplication, and external signatures.json
+        - Improved detection accuracy and own-report exclusions
+        - Version 1.2.0
 
         **Requirements:** Windows 10/11 x64, no .NET runtime required.
         **Installation:** Extract the ZIP and run InrideFair.exe as administrator.

@@ -201,6 +201,16 @@
                         </StackPanel>
                     </Button>
 
+                    <Button x:Name="SettingsButton"
+                            Style="{StaticResource MenuButtonStyle}"
+                            Click="MenuButton_Click"
+                            HorizontalAlignment="Stretch">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock Text="⚙" FontSize="18" Width="24" HorizontalAlignment="Center"/>
+                            <TextBlock Text=" Настройки" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
                     <Button x:Name="AboutButton"
                             Style="{StaticResource MenuButtonStyle}"
                             Click="MenuButton_Click"
@@ -327,6 +337,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 
                 <!-- Header -->
@@ -446,43 +457,60 @@
                 </Grid>
 
                 <!-- Details & Log Section (Side by Side) -->
-                <Grid Grid.Row="3" Margin="0,0,0,15" Height="200" MinHeight="200" MaxHeight="200">
+                <Grid Grid.Row="3" Margin="0,0,0,15" Height="250" MinHeight="250" MaxHeight="250">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Details Section -->
-                    <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,7,0" Height="200" MinHeight="200" MaxHeight="200">
+                    <!-- Findings Section -->
+                    <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,7,0" Height="250" MinHeight="250" MaxHeight="250">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Text="Детали сканирования" Style="{StaticResource SectionTitleStyle}"/>
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Найденные угрозы" Style="{StaticResource SectionTitleStyle}"/>
+                                <ComboBox Grid.Column="1"
+                                          x:Name="ThreatFilterCombo"
+                                          Width="140"
+                                          Margin="0,0,0,8"
+                                          SelectionChanged="ThreatFilterCombo_SelectionChanged">
+                                    <ComboBoxItem Content="Все" IsSelected="True"/>
+                                    <ComboBoxItem Content="Высокий риск"/>
+                                    <ComboBoxItem Content="Процессы"/>
+                                    <ComboBoxItem Content="Файлы"/>
+                                    <ComboBoxItem Content="Браузер"/>
+                                    <ComboBoxItem Content="Реестр"/>
+                                </ComboBox>
+                            </Grid>
 
-                            <TextBox Grid.Row="1" x:Name="DetailsText" 
-                                    Style="{StaticResource LogTextBoxStyle}"
-                                    VerticalAlignment="Stretch"
-                                    VerticalContentAlignment="Top"
-                                    TextWrapping="Wrap"
-                                    VerticalScrollBarVisibility="Visible"
-                                    AcceptsReturn="True"
-                                    TextAlignment="Left">
-                                <TextBox.Text>
-  • Процессы: 0
-  • Файлы: 0
-  • Архивы: 0
-  • Браузеры: 0
-  • Реестр: 0
-                                </TextBox.Text>
-                            </TextBox>
+                            <ListView Grid.Row="1"
+                                      x:Name="FindingsListView"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      MouseDoubleClick="FindingsListView_MouseDoubleClick"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Кат." Width="70" DisplayMemberBinding="{Binding Category}"/>
+                                        <GridViewColumn Header="Риск" Width="70" DisplayMemberBinding="{Binding Risk}"/>
+                                        <GridViewColumn Header="Совпадение" Width="140" DisplayMemberBinding="{Binding Match}"/>
+                                        <GridViewColumn Header="Путь / URL" Width="280" DisplayMemberBinding="{Binding Path}"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
                         </Grid>
                     </Border>
 
                     <!-- Log Section -->
-                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="7,0,0,0" Height="200" MinHeight="200" MaxHeight="200">
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="7,0,0,0" Height="250" MinHeight="250" MaxHeight="250">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -511,12 +539,26 @@
                     <Button x:Name="ScanButton"
                             Content="НАЧАТЬ ПРОВЕРКУ"
                             Style="{StaticResource PrimaryButtonStyle}"
-                            Width="280"
+                            Width="220"
                             Click="ScanButton_Click"/>
+                    <Button x:Name="CancelButton"
+                            Content="ОСТАНОВИТЬ"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Width="160"
+                            Margin="15,0,0,0"
+                            IsEnabled="False"
+                            Click="CancelButton_Click"/>
                 </StackPanel>
 
                 <!-- Secondary Buttons -->
                 <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button x:Name="AdminButton"
+                            Content="Запуск от администратора"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Width="200"
+                            Margin="0,0,15,0"
+                            Click="AdminButton_Click"/>
+
                     <Button x:Name="OpenFolderButton"
                         Content="Открыть папки"
                             Style="{StaticResource SecondaryButtonStyle}"
@@ -532,6 +574,14 @@
                             IsEnabled="False"
                             Click="OpenReportButton_Click"/>
                 </StackPanel>
+
+                <TextBlock Grid.Row="6"
+                           x:Name="ScanDiffTextBlock"
+                           Margin="0,10,0,0"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource SecondaryText}"
+                           FontSize="12"
+                           HorizontalAlignment="Center"/>
             </Grid>
 
             <!-- About View -->
@@ -707,6 +757,37 @@
                             
                             <TextBlock Text="© 2026 Inride Software" 
                                       FontSize="12" Foreground="{StaticResource TertiaryText}" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+
+            <!-- Settings View -->
+            <Grid x:Name="SettingsView" Visibility="Collapsed">
+                <Border Style="{StaticResource CardStyle}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="20" MaxWidth="760">
+                            <TextBlock Text="Настройки сканирования" Style="{StaticResource SectionTitleStyle}" FontSize="24"/>
+                            <TextBlock Text="Исключения, сигнатуры и режимы проверки сохраняются в config.json"
+                                       Foreground="{StaticResource SecondaryText}" Margin="0,8,0,20" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="Исключения (по одному пути на строку)" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <TextBox x:Name="ExclusionsTextBox" MinHeight="90" AcceptsReturn="True" TextWrapping="Wrap"
+                                     Style="{StaticResource LogTextBoxStyle}" Margin="0,0,0,16"/>
+
+                            <TextBlock Text="Дополнительные сигнатуры (по одной на строку)" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <TextBox x:Name="CustomSignaturesTextBox" MinHeight="90" AcceptsReturn="True" TextWrapping="Wrap"
+                                     Style="{StaticResource LogTextBoxStyle}" Margin="0,0,0,16"/>
+
+                            <CheckBox x:Name="DeepScanDnsCheckBox" Content="Глубокая проверка DNS-кэша (шумная)" Margin="0,0,0,8"/>
+                            <CheckBox x:Name="DeepScanPrefetchCheckBox" Content="Проверка Windows Prefetch" Margin="0,0,0,20"/>
+
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="Сохранить настройки" Style="{StaticResource PrimaryButtonStyle}" Width="200"
+                                        Click="SaveSettingsButton_Click"/>
+                                <Button Content="Добавить выбранную угрозу в исключения" Style="{StaticResource SecondaryButtonStyle}"
+                                        Width="320" Margin="15,0,0,0" Click="AddExclusionFromSelectionButton_Click"/>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </Border>

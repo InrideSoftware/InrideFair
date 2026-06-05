@@ -3,12 +3,10 @@ using InrideFair.Checkers;
 using InrideFair.Database;
 using InrideFair.Models;
 using InrideFair.Services;
+using InrideFair.Utils;
 
 namespace InrideFair.Scanner;
 
-/// <summary>
-/// Сервис сканирования системы.
-/// </summary>
 public class ScannerService : IDisposable
 {
     private readonly ILoggingService _logger;
@@ -40,77 +38,67 @@ public class ScannerService : IDisposable
         _regChecker = regChecker;
     }
 
-    /// <summary>
-    /// Выполнить сканирование и вернуть результаты.
-    /// </summary>
-    public async Task<ScanResult> RunScanAsync(IProgress<string>? progress = null)
+    public async Task<ScanResult> RunScanAsync(IProgress<string>? progress = null, CancellationToken cancellationToken = default)
     {
-        // Новый запуск должен стартовать с чистого буфера логов.
         while (LogMessages.TryTake(out _))
         {
         }
 
-        var results = new ScanResult
-        {
-            Processes = [],
-            Files = [],
-            Archives = [],
-            Browser = [],
-            Registry = [],
-            Log = [.. LogMessages],
-            Error = null
-        };
+        var results = new ScanResult();
 
         try
         {
-            await Task.Run(async () =>
+            await Task.Run(() =>
             {
-                // Инициализация
+                cancellationToken.ThrowIfCancellationRequested();
+                _cheatDb.ReloadSettings();
+
                 Log($"База данных: {_cheatDb.CheatProcesses.Count} процессов, {_cheatDb.CheatFiles.Count} файлов", progress);
 
-                // 1. Процессы
                 Log("Проверка процессов...", progress);
-                await Task.Run(() => _processChecker.CheckProcesses());
-                results.Processes = [.. _processChecker.FoundCheats];
+                _processChecker.CheckProcesses(cancellationToken);
+                results.Processes = ThreatDeduplicator.Deduplicate(_processChecker.FoundCheats);
                 Log($"  Найдено процессов: {results.Processes.Count}", progress);
 
-                // 2. Файлы
-                Log("Проверка файлов...", progress);
-                await Task.Run(() => _fsChecker.CheckSystem());
-                results.Files = [.. _fsChecker.FoundCheats];
-                Log($"  Найдено файлов: {results.Files.Count}", progress);
+                cancellationToken.ThrowIfCancellationRequested();
+                Log("Параллельная проверка файлов, архивов, браузеров и реестра...", progress);
 
-                // 3. Архивы
-                Log("Проверка архивов...", progress);
-                await Task.Run(() =>
+                var fileTask = Task.Run(() => _fsChecker.CheckSystem(cancellationToken), cancellationToken);
+                var archiveTask = Task.Run(() =>
                 {
                     foreach (var suspPath in _cheatDb.SuspiciousPaths)
                     {
-                        _archiveChecker.CheckArchivesInDirectory(suspPath);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        _archiveChecker.CheckArchivesInDirectory(suspPath, cancellationToken);
                     }
-                });
-                results.Archives = [.. _archiveChecker.FoundCheats];
+                }, cancellationToken);
+                var browserTask = Task.Run(() => _browserChecker.CheckAllBrowsers(cancellationToken), cancellationToken);
+                var registryTask = Task.Run(() => _regChecker.CheckSystem(cancellationToken), cancellationToken);
+
+                Task.WaitAll([fileTask, archiveTask, browserTask, registryTask], cancellationToken);
+
+                results.Files = ThreatDeduplicator.Deduplicate(_fsChecker.FoundCheats);
+                results.Archives = ThreatDeduplicator.Deduplicate(_archiveChecker.FoundCheats);
+                results.Browser = ThreatDeduplicator.Deduplicate(_browserChecker.FoundCheats);
+                results.Registry = ThreatDeduplicator.Deduplicate(_regChecker.FoundCheats);
+
+                Log($"  Найдено файлов: {results.Files.Count}", progress);
                 Log($"  Найдено архивов: {results.Archives.Count}", progress);
-
-                // 4. Браузеры
-                Log("Проверка браузеров...", progress);
-                await Task.Run(() => _browserChecker.CheckAllBrowsers());
-                results.Browser = [.. _browserChecker.FoundCheats];
                 Log($"  Найдено в браузерах: {results.Browser.Count}", progress);
-
-                // 5. Реестр
-                Log("Проверка реестра...", progress);
-                await Task.Run(() => _regChecker.CheckSystem());
-                results.Registry = [.. _regChecker.FoundCheats];
                 Log($"  Найдено в реестре: {results.Registry.Count}", progress);
 
-                // Итог
                 var total = results.Processes.Count + results.Files.Count + results.Archives.Count +
-                           results.Browser.Count + results.Registry.Count;
+                            results.Browser.Count + results.Registry.Count;
                 Log($"ИТОГО: {total} угроз", progress);
-            });
+            }, cancellationToken);
 
             results.Log = [.. LogMessages];
+        }
+        catch (OperationCanceledException)
+        {
+            results.Log = [.. LogMessages];
+            Log("Сканирование отменено пользователем", progress);
+            _logger.Info("Сканирование отменено пользователем");
         }
         catch (Exception ex)
         {
@@ -141,9 +129,6 @@ public class ScannerService : IDisposable
     }
 }
 
-/// <summary>
-/// Результаты сканирования.
-/// </summary>
 public record ScanResult
 {
     public List<DetectedThreat> Processes { get; set; } = [];
@@ -153,4 +138,7 @@ public record ScanResult
     public List<DetectedThreat> Registry { get; set; } = [];
     public List<string> Log { get; set; } = [];
     public string? Error { get; set; }
+
+    public IEnumerable<DetectedThreat> AllThreats() =>
+        Processes.Concat(Files).Concat(Archives).Concat(Browser).Concat(Registry);
 }
