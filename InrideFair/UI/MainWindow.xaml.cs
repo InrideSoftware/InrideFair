@@ -282,6 +282,9 @@ public partial class MainWindow : System.Windows.Window, IDisposable
 
     private void ApplyThreatFilter()
     {
+        if (FindingsListView == null)
+            return;
+
         var filter = (ThreatFilterCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Все";
         IEnumerable<ThreatListItem> filtered = filter switch
         {
@@ -296,7 +299,13 @@ public partial class MainWindow : System.Windows.Window, IDisposable
         FindingsListView.ItemsSource = filtered.ToList();
     }
 
-    private void ThreatFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) => ApplyThreatFilter();
+    private void ThreatFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded)
+            return;
+
+        ApplyThreatFilter();
+    }
 
     private void FindingsListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {

@@ -25,9 +25,13 @@ public static class ConfigValidator
             }
 
             var json = File.ReadAllText(ConfigPath);
-            var config = JsonSerializer.Deserialize<AppConfig>(json);
+            var config = JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
 
-            return config ?? new AppConfig();
+            return config with
+            {
+                CustomExclusions = config.CustomExclusions ?? [],
+                CustomSignatures = config.CustomSignatures ?? []
+            };
         }
         catch (JsonException ex)
         {

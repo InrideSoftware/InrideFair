@@ -34,10 +34,10 @@ public class CheatDatabase
         _config = config ?? ConfigValidator.ValidateAndLoad();
 
         CustomExclusions.Clear();
-        CustomExclusions.AddRange(_config.CustomExclusions);
+        CustomExclusions.AddRange(_config.CustomExclusions ?? []);
 
         CustomSignatures.Clear();
-        CustomSignatures.AddRange(_config.CustomSignatures);
+        CustomSignatures.AddRange(_config.CustomSignatures ?? []);
 
         var external = SignatureLoader.Load();
 

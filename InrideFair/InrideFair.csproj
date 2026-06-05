@@ -10,10 +10,10 @@
     <ApplicationIcon>appicon.ico</ApplicationIcon>
     <AssemblyName>InrideFair</AssemblyName>
     <RootNamespace>InrideFair</RootNamespace>
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
-    <InformationalVersion>1.2.0</InformationalVersion>
+    <Version>1.2.1</Version>
+    <AssemblyVersion>1.2.1.0</AssemblyVersion>
+    <FileVersion>1.2.1.0</FileVersion>
+    <InformationalVersion>1.2.1</InformationalVersion>
     <Authors>Inride Software</Authors>
     <Company>Inride Software</Company>
     <Product>Inride Fair</Product>

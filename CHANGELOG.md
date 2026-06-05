@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.1] - 2026-06-05
+
+### Fixed
+- Startup crash (`NullReferenceException`) when the threat filter ComboBox initialized before the findings list during XAML load.
+
 ## [1.2.0] - 2026-06-05
 
 ### Added
